@@ -1,0 +1,112 @@
+{
+  "name": "Job Discovery",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "n8n-node-reboot-schedule",
+      "name": "Every 6 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-380, 0]
+    },
+    {
+      "parameters": {
+        "path": "job-dashboard/discover"
+      },
+      "id": "n8n-node-reboot-webhook",
+      "name": "Discover trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.2,
+      "position": [-150, 0],
+      "webhookId": "job-dashboard-discover"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://remoteok.com/api",
+        "options": {}
+      },
+      "id": "n8n-node-reboot-remoteok",
+      "name": "Fetch RemoteOK jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [80, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst jobs = items\n  .flatMap((it) => Array.isArray(it.json) ? it.json : [it.json])\n  .filter((j) => j && j.position && j.uri)\n  .map((j) => ({\n    json: {\n      companyName: j.company || 'Tech Company',\n      jobTitle: j.position,\n      jobUrl: j.uri || '',\n      jobDescription: (j.description || '').replace(/<[^>]*>/g, '').slice(0, 4000),\n      location: j.location || 'Remote',\n      remote: true,\n      employmentType: 'Full-time',\n      salary: j.salary ? { min: null, max: null, currency: 'USD', period: 'yearly' } : undefined,\n      skills: [],\n      source: 'n8n RemoteOK',\n      postedDate: new Date(j.date || Date.now()).toISOString()\n    }\n  }));\nreturn jobs.slice(0, 20);"
+      },
+      "id": "n8n-node-reboot-map",
+      "name": "Map to dashboard schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [320, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/n8n/jobs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Job-Dashboard-Secret",
+              "value": "={{$env.JOB_DASHBOARD_WEBHOOK_SECRET || 'job_dashboard_n8n_secret_token_2026'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "n8n-node-reboot-ingest",
+      "name": "Push jobs to dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 0]
+    }
+  ],
+  "connections": {
+    "Discover trigger": {
+      "main": [
+        [
+          { "node": "Fetch RemoteOK jobs", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Every 6 hours": {
+      "main": [
+        [
+          { "node": "Fetch RemoteOK jobs", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch RemoteOK jobs": {
+      "main": [
+        [
+          { "node": "Map to dashboard schema", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Map to dashboard schema": {
+      "main": [
+        [
+          { "node": "Push jobs to dashboard", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

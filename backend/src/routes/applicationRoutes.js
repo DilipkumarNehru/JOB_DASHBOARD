@@ -1,0 +1,10 @@
+import express from 'express';
+import { getApplications, createApplication, getApplication, updateApplication } from '../controllers/applicationController.js';
+import { protect } from '../middleware/auth.js';
+const router = express.Router();
+router.use(protect);
+router.get('/', getApplications);
+router.post('/', createApplication);
+router.get('/:id', getApplication);
+router.put('/:id', updateApplication);
+export default router;

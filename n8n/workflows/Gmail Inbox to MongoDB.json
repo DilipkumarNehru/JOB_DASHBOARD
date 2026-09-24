@@ -1,0 +1,143 @@
+{
+  "name": "Gmail Inbox to MongoDB",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "a6ca07e5-b994-45f9-8029-1f5233ace377",
+      "name": "Every 1 Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ],
+          "readStatus": "unread"
+        }
+      },
+      "id": "8e598940-5ee1-4eeb-ac63-0a64652f6717",
+      "name": "Get Inbox Mail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        0
+      ],
+      "webhookId": "67b2d81f-6e6d-4256-9aa4-6043d8500adb",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "ATgk8maTNMuOvEJU",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "inbox_emails",
+        "fields": "id,threadId,snippet,From,To,Subject,internalDate",
+        "options": {}
+      },
+      "id": "b2976d1e-a9d0-4687-b6d0-388b2903a1fb",
+      "name": "Store In MongoDB",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.5,
+      "position": [
+        448,
+        0
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "aHwBo1ttdQGrtaOM",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $(\"Get Inbox Mail\").item.json.id }}"
+      },
+      "id": "deee655b-dcbd-4731-bed2-e48631900578",
+      "name": "Mark As Read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        0
+      ],
+      "webhookId": "4a626a00-95c7-4dbb-b786-543365fee3c7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "ATgk8maTNMuOvEJU",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 1 Minute": {
+      "main": [
+        [
+          {
+            "node": "Get Inbox Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Inbox Mail": {
+      "main": [
+        [
+          {
+            "node": "Store In MongoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store In MongoDB": {
+      "main": [
+        [
+          {
+            "node": "Mark As Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5c7d5032-4b87-4e91-9175-bf3769d8ceb8",
+  "meta": {
+    "instanceId": "a9b7fd9f7210bc09156868c197b663637654818ead9d6a939ca1b6d6ff274843"
+  },
+  "nodeGroups": [],
+  "id": "Nlv416ZhHK51F7au",
+  "tags": []
+}

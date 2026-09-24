@@ -1,0 +1,104 @@
+{
+  "name": "Gmail Sync to Job Dashboard",
+  "nodes": [
+    {
+      "id": "n8n-node-gmail-schedule",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-460, 0],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n8n-node-gmail-imap",
+      "name": "Fetch Gmail (IMAP)",
+      "type": "n8n-nodes-base.imap",
+      "typeVersion": 1.1,
+      "position": [-280, 0],
+      "parameters": {
+        "mailbox": "INBOX",
+        "criteria": [],
+        "postProcessAction": "peek",
+        "downloadAttachments": false,
+        "options": {}
+      },
+      "credentials": {
+        "imap": {
+          "id": "",
+          "name": "Gmail IMAP"
+        }
+      }
+    },
+    {
+      "id": "n8n-node-gmail-map",
+      "name": "Map to dashboard payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-100, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map((item) => {\n  const j = item.json || {};\n  const from = String(j.from || '');\n  const raw = String(j.textPlain || j.text || j.snippet || j.mail || '');\n  const headers = j.headers || {};\n  const msgId = String(j.messageId || headers['message-id'] || j['Message-ID'] || ('msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7))).replace(/[<>]/g, '');\n  const threadId = String(j.threadId || headers['x-gm-threadid'] || headers['X-GM-THRID'] || msgId).replace(/[<>]/g, '');\n  const senderMatch = from.match(/<([^<>]+)>/) || from.match(/([^\\s<>@]+@[^\\s<>]+)/);\n  return { json: {\n    gmailMessageId: msgId,\n    threadId: threadId,\n    sender: from.slice(0, 300),\n    senderEmail: (senderMatch ? senderMatch[1] : from).trim().toLowerCase(),\n    subject: String(j.subject || j.Subject || '').slice(0, 500),\n    bodySnippet: raw.slice(0, 500),\n    bodyFull: raw.slice(0, 3000),\n    receivedAt: j.date ? new Date(j.date).toISOString() : new Date().toISOString(),\n    labels: ['INBOX']\n  }};\n});"
+      }
+    },
+    {
+      "id": "n8n-node-gmail-ingest",
+      "name": "Ingest emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [80, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/n8n/emails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Job-Dashboard-Secret",
+              "value": "job_dashboard_n8n_secret_token_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Map to dashboard payload').all().map(n => n.json)) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Every hour": {
+      "main": [
+        [
+          { "node": "Fetch Gmail (IMAP)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Gmail (IMAP)": {
+      "main": [
+        [
+          { "node": "Map to dashboard payload", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Map to dashboard payload": {
+      "main": [
+        [
+          { "node": "Ingest emails", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

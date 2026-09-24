@@ -1,0 +1,16 @@
+import express from 'express';
+import { getJobs, getJob, createJob, updateJob, deleteJob, matchJob, getRecommended, discoverJobs, getJobSources, scanCompanies } from '../controllers/jobController.js';
+import { protect } from '../middleware/auth.js';
+const router = express.Router();
+router.use(protect);
+router.get('/recommended', getRecommended);
+router.get('/sources', getJobSources);
+router.post('/discover', discoverJobs);
+router.post('/scan-companies', scanCompanies);
+router.get('/', getJobs);
+router.post('/', createJob);
+router.get('/:id', getJob);
+router.put('/:id', updateJob);
+router.delete('/:id', deleteJob);
+router.post('/:id/match', matchJob);
+export default router;

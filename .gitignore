@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.local
+dist/
+build/
+coverage/
+*.log
+uploads/resumes/*
+!uploads/resumes/.gitkeep
+backend/generated/

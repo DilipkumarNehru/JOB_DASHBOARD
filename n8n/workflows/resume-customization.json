@@ -1,0 +1,69 @@
+{
+  "name": "Resume Customization",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "job-dashboard/customize"
+      },
+      "id": "n8n-node-reboot-webhook",
+      "name": "Customize trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.2,
+      "position": [-280, 0],
+      "webhookId": "job-dashboard-customize"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/n8n/ai/classify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Job-Dashboard-Secret",
+              "value": "={{$env.JOB_DASHBOARD_WEBHOOK_SECRET || 'job_dashboard_n8n_secret_token_2026'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ type: 'job', text: JSON.stringify($json) }) }}"
+      },
+      "id": "n8n-node-reboot-analyze",
+      "name": "Extract key skills (AI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-40, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// This workflow marks a job for resume customization.\n// The in-app flow lives in the dashboard UI:\n// Job page -> \"Generate customized resume\" -> Review -> download/apply.\nconst item = $input.first().json;\nreturn [{ json: { recommended: true, reason: 'High match job flagged for tailored resume. Open it in the dashboard and use Generate customized resume.' } }];"
+      },
+      "id": "n8n-node-reboot-preview",
+      "name": "Create preview draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 0]
+    }
+  ],
+  "connections": {
+    "Customize trigger": {
+      "main": [
+        [
+          { "node": "Extract key skills (AI)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Extract key skills (AI)": {
+      "main": [
+        [
+          { "node": "Create preview draft", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

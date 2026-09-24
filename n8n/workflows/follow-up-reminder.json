@@ -1,0 +1,86 @@
+{
+  "name": "Follow-up Reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "text": "{{new Date(Date.now() - 5 * 86400000).toISOString()}}"
+      },
+      "id": "n8n-node-reboot-duewindow",
+      "name": "Reminder window",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-280, 0]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "n8n-node-reboot-schedule",
+      "name": "Every day",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-520, 0]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "resource": "appointment"
+      },
+      "id": "n8n-node-reboot-notify",
+      "name": "Create notifications (HTTP)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [-40, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/n8n/followups",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Job-Dashboard-Secret",
+              "value": "={{$env.JOB_DASHBOARD_WEBHOOK_SECRET || 'job_dashboard_n8n_secret_token_2026'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([{ userId: $json.userId || '', applicationId: $json.applicationId || '', company: $json.company || 'Company', role: $json.role || '', dueDate: $json.dueDate || new Date(Date.now() + 3 * 86400000).toISOString(), nextAction: 'Send polite status check email' }]) }}"
+      },
+      "id": "n8n-node-reboot-ingest",
+      "name": "Push follow-up reminders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 0]
+    }
+  ],
+  "connections": {
+    "Every day": {
+      "main": [
+        [
+          { "node": "Push follow-up reminders", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Reminder window": {
+      "main": [
+        [
+          { "node": "Create notifications (HTTP)", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

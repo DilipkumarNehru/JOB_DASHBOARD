@@ -1,0 +1,100 @@
+{
+  "name": "Resume Matching",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "job-dashboard/match"
+      },
+      "id": "n8n-node-reboot-webhook",
+      "name": "Match trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.2,
+      "position": [-280, 0],
+      "webhookId": "job-dashboard-match"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/n8n/jobs/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Job-Dashboard-Secret",
+              "value": "={{$env.JOB_DASHBOARD_WEBHOOK_SECRET || 'job_dashboard_n8n_secret_token_2026'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit: 25 }) }}"
+      },
+      "id": "n8n-node-reboot-query",
+      "name": "Fetch un-scored jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-50, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst buckets = { matched: [], remaining: [] };\nconst raw = items.flatMap((it) => it.json.jobs || []);\nconst resumeSkills = ($env.RESUME_SKILLS || 'javascript,node.js,mongodb,react')\n  .split(',')\n  .map((s) => s.trim().toLowerCase());\nfor (const job of raw) {\n  const required = (job.requiredSkills || job.skills || []).map((s) => String(s).toLowerCase());\n  const hit = required.filter((s) => resumeSkills.includes(s)).length;\n  const match = required.length ? Math.round((hit / required.length) * 100) : 0;\n  if (match >= 70) buckets.matched.push(job);\n  else buckets.remaining.push(job);\n}\nreturn [{ json: { matched: buckets.matched, remaining: buckets.remaining } }];"
+      },
+      "id": "n8n-node-reboot-score",
+      "name": "Score against resume",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.matched.length }}",
+              "rightValue": "0",
+              "type": "number",
+              "operator": {
+                "type": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "n8n-node-reboot-if",
+      "name": "Any strong matches?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [800, 0]
+    }
+  ],
+  "connections": {
+    "Match trigger": {
+      "main": [
+        [
+          { "node": "Fetch un-scored jobs", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch un-scored jobs": {
+      "main": [
+        [
+          { "node": "Score against resume", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Score against resume": {
+      "main": [
+        [
+          { "node": "Any strong matches?", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
