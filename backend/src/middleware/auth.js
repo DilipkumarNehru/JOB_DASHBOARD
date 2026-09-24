@@ -4,8 +4,14 @@ import User from '../models/User.js';
 export const protect = async (req, res, next) => {
   let token;
 
+  // 1. Standard Authorization: Bearer <token> header
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
+  }
+
+  // 2. ?token= query param — used by browser iframes that cannot set headers
+  if (!token && req.query.token) {
+    token = req.query.token;
   }
 
   if (!token) {

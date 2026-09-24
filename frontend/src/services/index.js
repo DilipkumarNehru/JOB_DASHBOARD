@@ -15,9 +15,12 @@ export const resumeService = {
   get: (id) => api.get(`/resumes/${id}`),
   update: (id, parsedProfile) => api.put(`/resumes/${id}`, { parsedProfile }),
   analyze: (id) => api.post(`/resumes/${id}/analyze`),
+  atsScore: (id) => api.get(`/resumes/${id}/ats-score`),
   customize: (id, data) => api.post(`/resumes/${id}/customize`, data),
   delete: (id) => api.delete(`/resumes/${id}`),
   versions: (id) => api.get(`/resumes/${id}/versions`),
+  // Returns the URL for the original uploaded file (PDF preview iframe)
+  fileUrl: (id) => `/api/resumes/${id}/file`,
   downloadPdf: (id) => `/api/resumes/${id}/download.pdf`,
   getVersion: (versionId) => api.get(`/resumes/versions/${versionId}`),
   setVersionPrimary: (versionId) => api.put(`/resumes/versions/${versionId}/primary`),
