@@ -22,6 +22,7 @@ import Analytics from './pages/Analytics.jsx';
 import Notifications from './pages/Notifications.jsx';
 import Settings from './pages/Settings.jsx';
 import Integrations from './pages/Integrations.jsx';
+import LandingPage from './pages/landing/LandingPage.jsx';
 
 const Protected = ({ children }) => {
   const { token, loading } = useAuth();
@@ -35,7 +36,7 @@ const Protected = ({ children }) => {
       </div>
     );
   }
-  if (!token) return <Navigate to="/login" replace />;
+  if (!token) return <Navigate to="/home" replace />;
   return children;
 };
 
@@ -46,14 +47,26 @@ const PublicOnly = ({ children }) => {
   return children;
 };
 
+// Landing page: shows to everyone; authenticated users get a "Go to Dashboard" CTA
+const LandingRoute = ({ children }) => {
+  const { loading } = useAuth();
+  if (loading) return null;
+  return children;
+};
+
 function App() {
   return (
     <Routes>
+      {/* Public landing/home page */}
+      <Route path="/home" element={<LandingRoute><LandingPage /></LandingRoute>} />
+
+      {/* Auth pages */}
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
       <Route path="/forgot-password" element={<PublicOnly><ForgotPassword /></PublicOnly>} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
+      {/* Protected dashboard */}
       <Route path="/" element={<Protected><DashboardLayout /></Protected>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
