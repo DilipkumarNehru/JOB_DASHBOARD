@@ -36,7 +36,7 @@ export default function Integrations() {
         setAuthError(res.message || 'Gmail not configured on the server');
         return;
       }
-      window.location.href = res.authUrl;
+      window.open(res.authUrl, '_blank');
     } catch (err) {
       setAuthError(err.message);
     }

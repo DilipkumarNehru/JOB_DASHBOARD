@@ -57,11 +57,11 @@ export const handleCallback = async (req, res, next) => {
     await saveUserTokens(user, tokens);
 
     logger.info(`Gmail connected for user ${user.email}${gmailEmail ? ` (${gmailEmail})` : ''}`);
-    res.redirect(`${frontendUrl}/integrations?gmail=connected`);
+    res.redirect(`${frontendUrl}/gmail?gmail=connected`);
   } catch (err) {
     logger.error('Gmail OAuth callback failed: ' + err.message);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    res.redirect(`${frontendUrl}/integrations?gmail=error&reason=auth_failed`);
+    res.redirect(`${frontendUrl}/gmail?gmail=error&reason=auth_failed`);
   }
 };
 

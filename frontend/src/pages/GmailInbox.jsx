@@ -75,8 +75,12 @@ export default function GmailInbox() {
     p.delete('gmail');
     setParams(p, { replace: true });
     reload();
-    if (status === 'connected') toast.success('Gmail connected successfully');
-    else toast.error(p.get('reason') ? 'Gmail connection failed. Please try again.' : 'Gmail connection failed');
+    if (status === 'connected') {
+      toast.success('Gmail connected successfully! Syncing your emails…');
+      sync();
+    } else {
+      toast.error(p.get('reason') ? 'Gmail connection failed. Please try again.' : 'Gmail connection failed');
+    }
   }, []);
 
   const refreshStatus = async () => {
@@ -98,7 +102,7 @@ export default function GmailInbox() {
         toast.error(res.message || 'Gmail not configured on the server');
         return;
       }
-      window.location.href = res.authUrl;
+      window.open(res.authUrl, '_blank');
     } catch (err) {
       toast.error(err.message);
     } finally {

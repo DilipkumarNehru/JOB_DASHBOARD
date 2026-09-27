@@ -11,7 +11,7 @@ const ResumeSchema = new mongoose.Schema({
   originalName: { type: String, required: true },
   filePath: { type: String, required: true },
   fileSize: { type: Number },
-  fileType: { type: String, enum: ['pdf', 'docx', 'doc'], default: 'pdf' },
+  fileType: { type: String, default: '' },
   rawText: { type: String, default: '' },
   parsedProfile: {
     name: { type: String, default: '' },
@@ -46,6 +46,7 @@ const ResumeSchema = new mongoose.Schema({
     preferredLocations: [{ type: String }],
   },
   isPrimary: { type: Boolean, default: true },
+  atsScore: { type: Number, default: null },
   analyzedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 

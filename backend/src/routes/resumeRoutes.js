@@ -1,5 +1,5 @@
 import express from 'express';
-import { uploadResume, getResumes, getResume, updateResumeProfile, deleteResume, analyzeResume, customizeResumeForJob, downloadResumePdf } from '../controllers/resumeController.js';
+import { uploadResume, getResumes, getResume, updateResumeProfile, deleteResume, analyzeResume, customizeResumeForJob, downloadResumePdf, getAtsScore, serveResumeFile } from '../controllers/resumeController.js';
 import { getVersions, getVersion, deleteVersion, downloadVersionPdf, setPrimary } from '../controllers/resumeVersionController.js';
 import { protect } from '../middleware/auth.js';
 import { uploadResume as upload } from '../middleware/upload.js';
@@ -7,6 +7,8 @@ const router = express.Router();
 router.use(protect);
 router.post('/', upload.single('resume'), uploadResume);
 router.get('/', getResumes);
+router.get('/:id/ats-score', getAtsScore);
+router.get('/:id/file', serveResumeFile);
 router.post('/:id/analyze', analyzeResume);
 router.post('/:id/customize', customizeResumeForJob);
 router.get('/:id/versions', getVersions);

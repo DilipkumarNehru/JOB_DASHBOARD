@@ -57,33 +57,37 @@ export const ComboBox = ({ options, value, onChange, placeholder = 'Select…' }
 export const TagInput = ({ value = [], onChange, placeholder = 'Type and press Enter' }) => {
   const [input, setInput] = useState('');
 
+  const safeValues = (Array.isArray(value) ? value : []).map((t) =>
+    typeof t === 'string' ? t : (t?.name || t?.title || t?.degree || JSON.stringify(t))
+  );
+
   const addTag = () => {
     const tag = input.trim();
-    if (tag && !value.includes(tag)) onChange([...value, tag]);
+    if (tag && !safeValues.includes(tag)) onChange([...safeValues, tag]);
     setInput('');
   };
 
   return (
     <div className="rounded-lg border border-slate-300 bg-white px-3 py-2 focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500">
       <div className="flex flex-wrap gap-1.5">
-        {value.map((tag) => (
-          <span key={tag} className="badge bg-brand-100 text-brand-700">
+        {safeValues.map((tag, idx) => (
+          <span key={`${tag}-${idx}`} className="badge bg-brand-100 text-brand-700">
             {tag}
-            <button type="button" className="ml-1 text-brand-400 hover:text-brand-700" onClick={() => onChange(value.filter((t) => t !== tag))}>×</button>
+            <button type="button" className="ml-1 text-brand-400 hover:text-brand-700" onClick={() => onChange(safeValues.filter((_, i) => i !== idx))}>×</button>
           </span>
         ))}
         <input
           className="min-w-24 flex-1 text-sm focus:outline-none"
           value={input}
-          placeholder={value.length ? '' : placeholder}
+          placeholder={safeValues.length ? '' : placeholder}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
               addTag();
             }
-            if (e.key === 'Backspace' && !input && value.length) {
-              onChange(value.slice(0, -1));
+            if (e.key === 'Backspace' && !input && safeValues.length) {
+              onChange(safeValues.slice(0, -1));
             }
           }}
         />

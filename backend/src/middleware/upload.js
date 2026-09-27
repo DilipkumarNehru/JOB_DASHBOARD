@@ -17,18 +17,9 @@ const storage = multer.diskStorage({
   }
 });
 
-const fileFilter = (req, file, cb) => {
-  const allowedExtensions = ['.pdf', '.docx', '.doc'];
-  const ext = path.extname(file.originalname).toLowerCase();
-  if (allowedExtensions.includes(ext)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Only PDF and DOC/DOCX files are supported!'), false);
-  }
-};
-
+// Accept any file format — parsing will be attempted for known types,
+// and raw text extraction will be used as fallback for unknown types.
 export const uploadResume = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
-  fileFilter
 });
