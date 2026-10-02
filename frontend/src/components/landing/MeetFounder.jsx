@@ -21,17 +21,17 @@ export default function MeetFounder() {
       <div className="landing-container relative z-10">
         {/* Section header */}
         <div className="section-header">
-          <div className="section-badge">Meet the Founder</div>
+          <div className="section-badge">Leadership &amp; Founders</div>
           <h2 className="section-heading">
-            The Person Behind{' '}
+            The Team Behind{' '}
             <span className="section-heading-accent">JOB DASHBOARD</span>
           </h2>
           <p className="section-subtext">
-            Built by a developer who understands the challenges of modern job searching.
+            Built by developers who understand the real-world challenges of modern job searching.
           </p>
         </div>
 
-        {/* Content grid */}
+        {/* Main Founder: Dilipkumar Nehru */}
         <div className="founder-grid">
           {/* Left: Profile card */}
           <div className="founder-card-col">
@@ -100,6 +100,35 @@ export default function MeetFounder() {
                   <p className="founder-stat-label">{label}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Co-Founder Section: Subtle, smaller card */}
+        <div className="cofounder-container">
+          <div className="cofounder-card">
+            <div className="cofounder-avatar-wrapper">
+              <img
+                src="/cofounder.jpg"
+                alt="Shrisail Chavan — Co-Founder & Full Stack Developer"
+                className="cofounder-img"
+              />
+            </div>
+            <div className="cofounder-info">
+              <div className="cofounder-header">
+                <h4 className="cofounder-name">Shrisail Chavan</h4>
+                <span className="cofounder-badge">Co-Founder &amp; Full Stack Developer</span>
+              </div>
+              <p className="cofounder-desc">
+                Contributed to the development, technical architecture, and full-stack engineering of the JOB DASHBOARD platform.
+              </p>
+              <div className="cofounder-tags">
+                <span className="cofounder-tag">Full Stack</span>
+                <span className="cofounder-tag">React</span>
+                <span className="cofounder-tag">Node.js</span>
+                <span className="cofounder-tag">Express</span>
+                <span className="cofounder-tag">REST APIs</span>
+              </div>
             </div>
           </div>
         </div>

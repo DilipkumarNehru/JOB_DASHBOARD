@@ -947,3 +947,105 @@
   color: #94a3b8;
   margin: 0;
 }
+
+/* ── Co-Founder Subtle Card ── */
+.cofounder-container {
+  margin-top: 3.5rem;
+  display: flex;
+  justify-content: center;
+}
+.cofounder-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  max-width: 680px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.cofounder-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+.cofounder-avatar-wrapper {
+  flex-shrink: 0;
+  width: 84px;
+  height: 84px;
+  border-radius: 0.875rem;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+.cofounder-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cofounder-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1;
+}
+.cofounder-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+.cofounder-name {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+.cofounder-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.65rem;
+  border-radius: 9999px;
+  background: #edf2f7;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.cofounder-desc {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+.cofounder-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+.cofounder-tag {
+  font-size: 0.6875rem;
+  padding: 0.125rem 0.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  color: #64748b;
+  font-weight: 500;
+}
+@media (max-width: 640px) {
+  .cofounder-card {
+    flex-direction: column;
+    text-align: center;
+  }
+  .cofounder-header {
+    justify-content: center;
+  }
+  .cofounder-tags {
+    justify-content: center;
+  }
+}
