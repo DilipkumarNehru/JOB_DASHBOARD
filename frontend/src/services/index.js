@@ -3,6 +3,8 @@ import api from './api';
 export const authService = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
+  logout: () => api.post('/auth/logout'),
+  heartbeat: () => api.post('/auth/heartbeat'),
   getMe: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
@@ -128,4 +130,16 @@ export const gmailService = {
 
 export const n8nService = {
   trigger: (data) => api.post('/n8n/trigger', data),
+};
+
+export const adminService = {
+  getStats: () => api.get('/admin/stats'),
+  getLiveUsers: () => api.get('/admin/live-users'),
+  getUsers: (params) => api.get('/admin/users', { params }),
+  getUser: (id) => api.get(`/admin/users/${id}`),
+  updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
+  changePassword: (id, newPassword) => api.post(`/admin/users/${id}/change-password`, { newPassword }),
+  forceLogout: (id) => api.post(`/admin/users/${id}/force-logout`),
+  deleteUser: (id) => api.delete(`/admin/users/${id}`),
+  getLogs: (params) => api.get('/admin/logs', { params }),
 };

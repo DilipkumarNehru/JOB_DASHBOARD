@@ -17,6 +17,7 @@ const TITLES = {
   '/notifications': 'Notifications',
   '/settings': 'Settings',
   '/integrations': 'Integrations',
+  '/admin': 'Admin Operations & Live Monitor',
 };
 
 export default function DashboardLayout() {

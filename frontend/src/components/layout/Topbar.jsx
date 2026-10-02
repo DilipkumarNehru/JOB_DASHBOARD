@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, Bell, Search } from 'lucide-react';
+import { Menu, Bell, Search, ShieldCheck } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications.js';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 export const Topbar = ({ onMenuClick, title }) => {
   const { unread } = useNotifications();
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
 
   const submit = (e) => {
@@ -18,7 +20,18 @@ export const Topbar = ({ onMenuClick, title }) => {
         <Menu className="h-5 w-5" />
       </button>
 
-      <h1 className="hidden text-sm font-semibold text-slate-800 sm:block">{title || 'Dashboard'}</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="hidden text-sm font-semibold text-slate-800 sm:block">{title || 'Dashboard'}</h1>
+        {user?.role === 'admin' && (
+          <Link
+            to="/admin"
+            className="hidden sm:inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 hover:bg-rose-100 transition-colors shadow-xs"
+          >
+            <ShieldCheck className="h-3 w-3 text-rose-600" />
+            ADMIN
+          </Link>
+        )}
+      </div>
 
       <form onSubmit={submit} className="ml-auto flex w-full max-w-sm items-center">
         <div className="relative w-full">
@@ -31,6 +44,16 @@ export const Topbar = ({ onMenuClick, title }) => {
           />
         </div>
       </form>
+
+      {user?.role === 'admin' && (
+        <Link
+          to="/admin"
+          className="sm:hidden flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-700 hover:bg-rose-100"
+          title="Admin Dashboard"
+        >
+          <ShieldCheck className="h-4 w-4" />
+        </Link>
+      )}
 
       <Link to="/notifications" className="relative btn-ghost h-9 w-9 p-0" aria-label="Notifications">
         <Bell className="h-5 w-5" />

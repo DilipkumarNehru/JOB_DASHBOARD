@@ -23,6 +23,7 @@ import Notifications from './pages/Notifications.jsx';
 import Settings from './pages/Settings.jsx';
 import Integrations from './pages/Integrations.jsx';
 import LandingPage from './pages/landing/LandingPage.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
 
 const Protected = ({ children }) => {
   const { token, loading } = useAuth();
@@ -37,6 +38,15 @@ const Protected = ({ children }) => {
     );
   }
   if (!token) return <Navigate to="/home" replace />;
+  return children;
+};
+
+const AdminOnly = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user || user.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
   return children;
 };
 
@@ -86,6 +96,8 @@ function App() {
         <Route path="notifications" element={<Notifications />} />
         <Route path="settings" element={<Settings />} />
         <Route path="integrations" element={<Integrations />} />
+        {/* Admin Dashboard */}
+        <Route path="admin" element={<AdminOnly><AdminDashboard /></AdminOnly>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>

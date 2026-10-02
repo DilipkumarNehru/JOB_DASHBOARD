@@ -33,6 +33,15 @@ export const AuthProvider = ({ children }) => {
     else localStorage.removeItem('jd_token');
   }, [token]);
 
+  // Periodic heartbeat when authenticated to maintain accurate live status
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      authService.heartbeat().catch(() => {});
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [token]);
+
   const login = async (email, password) => {
     const res = await authService.login({ email, password });
     setToken(res.token);
@@ -47,9 +56,16 @@ export const AuthProvider = ({ children }) => {
     return res.user;
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      if (token) {
+        await authService.logout().catch(() => {});
+      }
+    } finally {
+      setToken(null);
+      setUser(null);
+      localStorage.removeItem('jd_token');
+    }
   };
 
   const updateUser = (data) => setUser((u) => ({ ...u, ...data }));

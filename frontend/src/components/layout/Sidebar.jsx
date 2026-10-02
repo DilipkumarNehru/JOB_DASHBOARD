@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Briefcase, FileCheck, FileText, Mail, Building2,
   CalendarClock, BellRing, BarChart3, Bell, Plug, Settings, LogOut,
-  BriefcaseBusiness, X, Inbox
+  BriefcaseBusiness, X, Inbox, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useNotifications } from '../../hooks/useNotifications.js';
@@ -87,6 +87,33 @@ export const Sidebar = ({ open, onClose }) => {
               </div>
             </div>
           ))}
+
+          {/* Admin section for admin users */}
+          {user?.role === 'admin' && (
+            <div className="mt-5 border-t border-slate-800/80 pt-4">
+              <p className="px-3 text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center justify-between">
+                <span>Administration</span>
+                <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+              </p>
+              <div className="mt-1.5 space-y-0.5">
+                <NavLink
+                  to="/admin"
+                  onClick={onClose}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                      isActive ? 'bg-rose-600 text-white shadow-md' : 'text-rose-300 hover:bg-rose-950/40 hover:text-white'
+                    }`
+                  }
+                >
+                  <ShieldCheck className="h-[18px] w-[18px] text-rose-400" />
+                  <span className="flex-1">Admin Dashboard</span>
+                  <span className="rounded-full bg-rose-500/20 border border-rose-500/40 px-1.5 py-0.2 text-[9px] font-bold text-rose-300">
+                    Live
+                  </span>
+                </NavLink>
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className="border-t border-slate-800 p-4">
