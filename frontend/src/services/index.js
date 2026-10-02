@@ -13,15 +13,28 @@ export const resumeService = {
   upload: (formData) => api.post('/resumes', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 }),
   getAll: () => api.get('/resumes'),
   get: (id) => api.get(`/resumes/${id}`),
+  getPrimary: () => api.get('/resumes/primary'),
   update: (id, parsedProfile) => api.put(`/resumes/${id}`, { parsedProfile }),
+  updateName: (id, resumeName) => api.put(`/resumes/${id}/name`, { resumeName }),
   analyze: (id) => api.post(`/resumes/${id}/analyze`),
   atsScore: (id) => api.get(`/resumes/${id}/ats-score`),
   customize: (id, data) => api.post(`/resumes/${id}/customize`, data),
   delete: (id) => api.delete(`/resumes/${id}`),
+  setPrimary: (id) => api.put(`/resumes/${id}/set-primary`),
   versions: (id) => api.get(`/resumes/${id}/versions`),
-  // Returns the URL for the original uploaded file (PDF preview iframe)
   fileUrl: (id) => `/api/resumes/${id}/file`,
-  downloadPdf: (id) => `/api/resumes/${id}/download.pdf`,
+  downloadPdf: (id) => {
+    const token = localStorage.getItem('jd_token');
+    return `/api/resumes/${id}/download.pdf${token ? `?token=${token}` : ''}`;
+  },
+  downloadDocx: (id) => {
+    const token = localStorage.getItem('jd_token');
+    return `/api/resumes/${id}/download.docx${token ? `?token=${token}` : ''}`;
+  },
+  convertAndSaveWord: (id, data) => api.post(`/resumes/${id}/convert-word`, data),
+  convertAndSavePdf: (id, data) => api.post(`/resumes/${id}/convert-pdf`, data),
+  convertAndSave: (id, data) => api.post(`/resumes/${id}/convert`, data),
+  previewHtml: (id) => api.get(`/resumes/${id}/preview-html`),
   getVersion: (versionId) => api.get(`/resumes/versions/${versionId}`),
   setVersionPrimary: (versionId) => api.put(`/resumes/versions/${versionId}/primary`),
   deleteVersion: (versionId) => api.delete(`/resumes/versions/${versionId}`),
@@ -35,10 +48,14 @@ export const jobService = {
   update: (id, data) => api.put(`/jobs/${id}`, data),
   remove: (id) => api.delete(`/jobs/${id}`),
   match: (id) => api.post(`/jobs/${id}/match`, {}, { timeout: 120000 }),
+  getMatchDetails: (jobId, resumeId) => api.get(`/jobs/${jobId}/match-details`, { params: { resumeId } }),
   recommended: () => api.get('/jobs/recommended'),
   sources: () => api.get('/jobs/sources'),
   discover: (data) => api.post('/jobs/discover', data, { timeout: 180000 }),
   scanCompanies: () => api.post('/jobs/scan-companies', {}, { timeout: 120000 }),
+  getPrimaryResumeJobs: (params) => api.get('/jobs/primary-resume', { params }),
+  getStats: () => api.get('/jobs/stats'),
+  recalculateMatches: (data) => api.post('/jobs/recalculate-matches', data || {}, { timeout: 300000 }),
 };
 
 export const applicationService = {
@@ -89,7 +106,7 @@ export const notificationService = {
 };
 
 export const analyticsService = {
-  stats: () => api.get('/analytics'),
+  stats: (params) => api.get('/analytics', { params }),
   monthly: () => api.get('/analytics/monthly'),
   skills: () => api.get('/analytics/skills'),
   applications: () => api.get('/analytics/applications'),

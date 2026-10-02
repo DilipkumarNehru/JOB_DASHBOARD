@@ -204,6 +204,11 @@ export default function ResumeDetails() {
           <button onClick={loadAts} className="btn-secondary flex items-center gap-1.5 border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100">
             <Sparkles className="h-4 w-4 text-violet-600" /> ATS &amp; AI Recommendations
           </button>
+          <a href={resumeService.downloadDocx(id)}
+            download={`${(resume.resumeName || resume.originalFileName || 'resume').replace(/\.[^/.]+$/, '')}.docx`}
+            className="btn-secondary flex items-center gap-1.5 border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+            <Download className="h-4 w-4 text-indigo-600" /> Word (.docx)
+          </a>
           <a href={resumeService.downloadPdf(id)} className="btn-secondary flex items-center gap-1.5">
             <Download className="h-4 w-4" /> Download PDF
           </a>
@@ -219,7 +224,7 @@ export default function ResumeDetails() {
           <div>
             <h1 className="text-2xl font-black text-slate-900">{profile.name || 'Candidate Profile'}</h1>
             <p className="mt-1 text-sm text-slate-500">
-              {resume.originalName} · Uploaded {formatDate(resume.createdAt)} · {profile.experienceYears || 0} years experience
+              {resume.originalFileName || resume.originalName} · Uploaded {formatDate(resume.createdAt)} · {profile.experienceYears || 0} years experience
             </p>
           </div>
           {resume.atsScore !== null && resume.atsScore !== undefined && (

@@ -106,11 +106,15 @@ const seed = async () => {
   // 3. Resume
   const resume = await Resume.create({
     userId: user._id,
+    resumeName: 'Demo Resume',
     fileName: 'demo-resume.pdf',
     originalName: 'demo-resume.pdf',
+    originalFileName: 'demo-resume.pdf',
     filePath: 'uploads/resumes/demo-resume.pdf',
     fileSize: 0,
     fileType: 'pdf',
+    mimeType: 'application/pdf',
+    fileId: null,
     rawText: 'Backend Developer with 3+ years experience. Skills: Node.js, Express.js, MongoDB, Redis, JavaScript, TypeScript, REST API, JWT, Docker, Git.',
     parsedProfile: SAMPLE_PROFILE,
     isPrimary: true,

@@ -46,13 +46,18 @@ const importResume = async () => {
   fs.copyFileSync(pdfPath, dest);
 
   await Resume.updateMany({ userId: user._id }, { isPrimary: false });
+  const baseName = path.basename(pdfPath);
   const resume = await Resume.create({
     userId: user._id,
+    resumeName: baseName,
     fileName,
-    originalName: path.basename(pdfPath),
+    originalName: baseName,
+    originalFileName: baseName,
     filePath: path.resolve(dest),
     fileSize: fs.statSync(dest).size,
     fileType: ext,
+    mimeType: ext === 'pdf' ? 'application/pdf' : 'application/octet-stream',
+    fileId: null,
     rawText,
     parsedProfile,
     isPrimary: true,

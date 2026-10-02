@@ -3,6 +3,7 @@ import Job from '../models/Job.js';
 import Email from '../models/Email.js';
 import Resume from '../models/Resume.js';
 import FollowUp from '../models/FollowUp.js';
+import JobMatch from '../models/JobMatch.js';
 
 const STATUS_GROUPS = {
   Saved: ['Saved'],
@@ -18,8 +19,45 @@ const STATUS_GROUPS = {
 export const getDashboardStats = async (req, res, next) => {
   try {
     const userId = req.user.id;
+
+    // Get primary or requested resume for resume-specific stats
+    const requestedResumeId = req.query.resumeId;
+    let primaryResume = null;
+    if (requestedResumeId) {
+      primaryResume = await Resume.findOne({ _id: requestedResumeId, userId });
+    }
+    if (!primaryResume) {
+      primaryResume = await Resume.findOne({ userId, isPrimary: true });
+    }
+    if (!primaryResume) {
+      primaryResume = await Resume.findOne({ userId }).sort({ createdAt: -1 });
+    }
+    const allResumes = await Resume.find({ userId }).select('_id resumeName originalFileName originalName isPrimary');
+
+    // Auto-calculate matches for primary resume if none exist yet
+    if (primaryResume) {
+      const matchCount = await JobMatch.countDocuments({ userId, resumeId: primaryResume._id });
+      if (matchCount === 0) {
+        const existingJobs = await Job.find({}).limit(50).lean();
+        if (existingJobs.length > 0) {
+          const { calculateMatch } = await import('../services/matchingEngineService.js');
+          const resumeName = primaryResume.resumeName || primaryResume.originalFileName || primaryResume.originalName || 'My Resume';
+          for (const j of existingJobs) {
+            try {
+              const matchData = await calculateMatch(primaryResume, j);
+              await JobMatch.findOneAndUpdate(
+                { userId, jobId: j._id, resumeId: primaryResume._id },
+                { ...matchData, resumeId: primaryResume._id, resumeName, calculatedAt: new Date() },
+                { upsert: true, new: true }
+              );
+            } catch (_) {}
+          }
+        }
+      }
+    }
+
     const [
-      totalJobs, newJobs, matchedJobs,
+      totalJobs, newJobs, globalMatchedJobs,
       totalApps, inProgress, interviews, shortlisted, offers, rejected, followUpsDue, followUpsDueTomorrow, overdue
     ] = await Promise.all([
       Job.countDocuments({}),
@@ -36,9 +74,88 @@ export const getDashboardStats = async (req, res, next) => {
       Application.countDocuments({ userId, nextFollowUpDate: { $lte: new Date() }, status: { $nin: ['Offer', 'Rejected', 'Withdrawn'] } })
     ]);
 
+    // Multi-resume stats from JobMatch collection
+    const totalUniqueMatchedJobs = (await JobMatch.distinct('jobId', { userId })).length;
+    const primaryResumeJobCount = primaryResume
+      ? await JobMatch.countDocuments({ userId, resumeId: primaryResume._id })
+      : 0;
+
+    // Matched jobs specifically for the active primary resume
+    let matchThreshold = 70;
+    let primaryResumeMatchedJobs = 0;
+    if (primaryResume) {
+      primaryResumeMatchedJobs = await JobMatch.countDocuments({
+        userId,
+        resumeId: primaryResume._id,
+        overallMatch: { $gte: 70 }
+      });
+      // If 0 matches >= 70% but jobs exist in pool, check >= 50%
+      if (primaryResumeMatchedJobs === 0 && primaryResumeJobCount > 0) {
+        const count50 = await JobMatch.countDocuments({
+          userId,
+          resumeId: primaryResume._id,
+          overallMatch: { $gte: 50 }
+        });
+        if (count50 > 0) {
+          primaryResumeMatchedJobs = count50;
+          matchThreshold = 50;
+        }
+      }
+    } else {
+      primaryResumeMatchedJobs = globalMatchedJobs;
+    }
+
+    const matchedJobs = primaryResume ? primaryResumeMatchedJobs : globalMatchedJobs;
+
+    // Build resume list with per-resume job & match stats
+    const allResumesWithStats = await Promise.all(
+      allResumes.map(async (r) => {
+        const rName = r.resumeName || r.originalFileName || r.originalName || 'Resume';
+        const jobCount = await JobMatch.countDocuments({ userId, resumeId: r._id });
+        let matchedCount = await JobMatch.countDocuments({ userId, resumeId: r._id, overallMatch: { $gte: 70 } });
+        if (matchedCount === 0 && jobCount > 0) {
+          matchedCount = await JobMatch.countDocuments({ userId, resumeId: r._id, overallMatch: { $gte: 50 } });
+        }
+        return {
+          _id: r._id,
+          resumeName: rName,
+          isPrimary: !!r.isPrimary,
+          jobCount,
+          matchedCount,
+        };
+      })
+    );
+
     res.json({
       success: true,
-      stats: { totalJobs, newJobs, matchedJobs, totalApps, inProgress, interviews, shortlisted, offers, rejected, followUpsDue, followUpsDueTomorrow, overdue }
+      stats: {
+        totalJobs,
+        newJobs,
+        matchedJobs,
+        matchThreshold,
+        totalApps,
+        inProgress,
+        interviews,
+        shortlisted,
+        offers,
+        rejected,
+        followUpsDue,
+        followUpsDueTomorrow,
+        overdue,
+        // Multi-resume stats
+        totalResumes: allResumes.length,
+        primaryResumeJobCount,
+        totalUniqueMatchedJobs,
+        allResumes: allResumesWithStats,
+        primaryResume: primaryResume ? {
+          _id: primaryResume._id,
+          resumeName: primaryResume.resumeName || primaryResume.originalFileName || primaryResume.originalName,
+          isPrimary: !!primaryResume.isPrimary,
+          jobCount: primaryResumeJobCount,
+          matchedJobs: primaryResumeMatchedJobs,
+          matchThreshold,
+        } : null,
+      }
     });
   } catch (err) { next(err); }
 };
