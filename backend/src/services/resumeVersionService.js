@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Document, Paragraph, TextRun, HeadingLevel, Packer } from 'docx';
 import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -91,8 +92,22 @@ export const buildPdfFromProfile = async (profile, targetCompany) => {
         doc.fontSize(10).fillColor('#374151').text(certifications.join('  •  '));
       }
 
+      if (!profile.summary && !skills.length && !companies.length && rawText) {
+        doc.moveDown(0.6);
+        doc.fontSize(12).fillColor('#111827').text('RESUME CONTENT');
+        doc.moveDown(0.3);
+        doc.fontSize(10).fillColor('#374151').text(rawText, { lineGap: 2 });
+      }
+
       doc.end();
-      stream.on('finish', () => resolve(filePath));
+      stream.on('finish', () => {
+        try {
+          const buffer = fs.readFileSync(filePath);
+          resolve({ filePath, buffer });
+        } catch (_) {
+          resolve({ filePath, buffer: null });
+        }
+      });
       stream.on('error', reject);
     } catch (err) {
       reject(err);
@@ -151,4 +166,219 @@ export const buildPdfFromCustomized = async (customizedProfile) => {
       reject(err);
     }
   });
+};
+
+export const buildDocxFromProfile = async (profile = {}, rawText = '', targetName = 'resume') => {
+  const dir = path.resolve(__dirname, '../../generated');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const safeName = (targetName || 'resume').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  const filePath = path.join(dir, `${Date.now()}-${safeName}.docx`);
+
+  const children = [];
+
+  // Name
+  children.push(
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [
+        new TextRun({
+          text: profile.name || 'Candidate Resume',
+          bold: true,
+          size: 32,
+          color: '111827',
+        }),
+      ],
+      spacing: { after: 100 },
+    })
+  );
+
+  // Contact line
+  const contactParts = [profile.email, profile.phone, profile.location].filter(Boolean);
+  if (contactParts.length) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: contactParts.join('  |  '),
+            size: 20,
+            color: '4B5563',
+          }),
+        ],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  // Summary
+  if (profile.summary) {
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: 'PROFESSIONAL SUMMARY', bold: true, size: 24, color: '1F2937' })],
+        spacing: { before: 200, after: 100 },
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: profile.summary, size: 21, color: '374151' })],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  // Skills
+  const skills = profile.skills || [];
+  if (skills.length) {
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: 'SKILLS', bold: true, size: 24, color: '1F2937' })],
+        spacing: { before: 200, after: 100 },
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: skills.join('  •  '), size: 21, color: '374151' })],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  // Experience
+  const companies = profile.companies || [];
+  if (companies.length) {
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: 'PROFESSIONAL EXPERIENCE', bold: true, size: 24, color: '1F2937' })],
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    for (const c of companies) {
+      const titleLine = [c.role, c.name || c.company].filter(Boolean).join(' — ');
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: titleLine || 'Role', bold: true, size: 22, color: '111827' })],
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (c.startDate || c.endDate) {
+        children.push(
+          new Paragraph({
+            children: [new TextRun({ text: [c.startDate, c.endDate].filter(Boolean).join(' to '), italics: true, size: 19, color: '6B7280' })],
+            spacing: { after: 50 },
+          })
+        );
+      }
+      for (const h of (c.highlights || [])) {
+        children.push(
+          new Paragraph({
+            children: [new TextRun({ text: `• ${h}`, size: 20, color: '374151' })],
+            spacing: { after: 40 },
+          })
+        );
+      }
+    }
+  }
+
+  // Projects
+  const projects = profile.projects || [];
+  if (projects.length) {
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: 'PROJECTS', bold: true, size: 24, color: '1F2937' })],
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    for (const p of projects) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: p.title || 'Project', bold: true, size: 22, color: '111827' })],
+          spacing: { before: 80, after: 40 },
+        })
+      );
+      if (p.technologies && p.technologies.length) {
+        children.push(
+          new Paragraph({
+            children: [new TextRun({ text: `Technologies: ${p.technologies.join(', ')}`, italics: true, size: 19, color: '6B7280' })],
+            spacing: { after: 40 },
+          })
+        );
+      }
+      for (const h of (p.highlights || [])) {
+        children.push(
+          new Paragraph({
+            children: [new TextRun({ text: `• ${h}`, size: 20, color: '374151' })],
+            spacing: { after: 40 },
+          })
+        );
+      }
+    }
+  }
+
+  // Education
+  const education = profile.education || [];
+  if (education.length) {
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: 'EDUCATION', bold: true, size: 24, color: '1F2937' })],
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    for (const e of education) {
+      const eduText = [e.degree, e.institution].filter(Boolean).join(' — ') + (e.year ? ` (${e.year})` : '');
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: eduText, size: 21, color: '374151' })],
+          spacing: { after: 60 },
+        })
+      );
+    }
+  }
+
+  // Certifications
+  const certifications = profile.certifications || [];
+  if (certifications.length) {
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: 'CERTIFICATIONS', bold: true, size: 24, color: '1F2937' })],
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    for (const cert of certifications) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: `• ${cert}`, size: 21, color: '374151' })],
+          spacing: { after: 40 },
+        })
+      );
+    }
+  }
+
+  // Fallback if structured sections are empty but rawText exists
+  if (!profile.summary && !skills.length && !companies.length && rawText) {
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: 'RESUME CONTENT', bold: true, size: 24, color: '1F2937' })],
+        spacing: { before: 200, after: 100 },
+      })
+    );
+    const lines = rawText.split('\n').filter(l => l.trim().length > 0);
+    for (const line of lines) {
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: line, size: 21, color: '374151' })],
+          spacing: { after: 50 },
+        })
+      );
+    }
+  }
+
+  const doc = new Document({
+    sections: [{ properties: {}, children }],
+  });
+
+  const buffer = await Packer.toBuffer(doc);
+  fs.writeFileSync(filePath, buffer);
+  return { filePath, buffer };
 };
