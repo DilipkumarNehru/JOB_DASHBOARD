@@ -24,6 +24,8 @@ import Settings from './pages/Settings.jsx';
 import Integrations from './pages/Integrations.jsx';
 import LandingPage from './pages/landing/LandingPage.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
+import Practice from './pages/Practice.jsx';
+import OnlineCompiler from './pages/OnlineCompiler.jsx';
 
 const Protected = ({ children }) => {
   const { token, loading } = useAuth();
@@ -91,6 +93,8 @@ function App() {
         <Route path="emails/:id" element={<EmailDetails />} />
         <Route path="gmail" element={<GmailInbox />} />
         <Route path="interviews" element={<Interviews />} />
+        <Route path="practice" element={<Practice />} />
+        <Route path="compiler" element={<OnlineCompiler />} />
         <Route path="follow-ups" element={<FollowUps />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="notifications" element={<Notifications />} />

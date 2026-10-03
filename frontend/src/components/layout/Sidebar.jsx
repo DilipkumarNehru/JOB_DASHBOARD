@@ -2,14 +2,14 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Briefcase, FileCheck, FileText, Mail, Building2,
   CalendarClock, BellRing, BarChart3, Bell, Plug, Settings, LogOut,
-  BriefcaseBusiness, X, Inbox, ShieldCheck
+  BriefcaseBusiness, X, Inbox, ShieldCheck, Code2, Terminal
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useNotifications } from '../../hooks/useNotifications.js';
 
 const ICONS = {
   LayoutDashboard, Briefcase, FileCheck, FileText, Mail, Building2,
-  CalendarClock, BellRing, BarChart3, Bell, Plug, Settings, Inbox
+  CalendarClock, BellRing, BarChart3, Bell, Plug, Settings, Inbox, Code2, Terminal
 };
 
 const NAV = [
@@ -22,7 +22,9 @@ const NAV = [
     { to: '/emails', label: 'Email Intelligence', icon: 'Inbox' },
     { to: '/companies', label: 'Companies', icon: 'Building2' },
   ] },
-  { section: 'Tracking', items: [
+  { section: 'Preparation & Coding', items: [
+    { to: '/compiler', label: 'Online Compiler', icon: 'Terminal' },
+    { to: '/practice', label: 'Interview Practice', icon: 'Code2' },
     { to: '/interviews', label: 'Interviews', icon: 'CalendarClock' },
     { to: '/follow-ups', label: 'Follow-ups', icon: 'BellRing' },
   ] },

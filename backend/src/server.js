@@ -24,6 +24,7 @@ import gmailRoutes from './routes/gmailRoutes.js';
 import interviewRoutes from './routes/interviewRoutes.js';
 import n8nRoutes from './routes/n8nRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import practiceRoutes from './routes/practiceRoutes.js';
 import { ensureAdminAccount } from './config/seedAdmin.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -79,6 +80,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/gmail', gmailRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/n8n', n8nRoutes);
+app.use('/api/practice', practiceRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

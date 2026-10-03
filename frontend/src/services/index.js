@@ -143,3 +143,12 @@ export const adminService = {
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getLogs: (params) => api.get('/admin/logs', { params }),
 };
+
+export const practiceService = {
+  getMatchedJobs: () => api.get('/practice/matched-jobs'),
+  getSession: (jobId, resumeId) => api.get('/practice/session', { params: { jobId, resumeId } }),
+  generateQuestions: (data) => api.post('/practice/generate-questions', data, { timeout: 120000 }),
+  updateQuestion: (questionId, data) => api.put(`/practice/questions/${questionId}`, data),
+  executeCode: (data) => api.post('/practice/execute', data, { timeout: 35000 }),
+  getStats: () => api.get('/practice/stats'),
+};
