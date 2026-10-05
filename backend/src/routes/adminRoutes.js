@@ -9,6 +9,8 @@ import {
   getAuthLogs,
   getLiveUsers,
   forceLogoutUser,
+  getAllJobsAdmin,
+  deleteJobAdmin,
 } from '../controllers/adminController.js';
 import { protect, adminOnly } from '../middleware/auth.js';
 
@@ -31,5 +33,9 @@ router.put('/users/:id', updateUser);
 router.post('/users/:id/change-password', changeUserPassword);
 router.post('/users/:id/force-logout', forceLogoutUser);
 router.delete('/users/:id', deleteUser);
+
+// Jobs management
+router.get('/jobs', getAllJobsAdmin);
+router.delete('/jobs/:id', deleteJobAdmin);
 
 export default router;

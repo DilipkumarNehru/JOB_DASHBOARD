@@ -142,7 +142,10 @@ export const adminService = {
   forceLogout: (id) => api.post(`/admin/users/${id}/force-logout`),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getLogs: (params) => api.get('/admin/logs', { params }),
+  getJobs: (params) => api.get('/admin/jobs', { params }),
+  deleteJob: (id) => api.delete(`/admin/jobs/${id}`),
 };
+
 
 export const practiceService = {
   getMatchedJobs: () => api.get('/practice/matched-jobs'),
