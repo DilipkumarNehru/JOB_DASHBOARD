@@ -6,7 +6,7 @@ import {
   Filter, RefreshCw, Trash2, Edit3, AlertTriangle, CheckCircle2,
   XCircle, Smartphone, Monitor, Globe, FileText, Sparkles, Copy,
   Check, X, ChevronLeft, ChevronRight, Crown, Laptop, Info,
-  ExternalLink, Calendar, Building2, Briefcase, Mail
+  ExternalLink, Calendar, Building2, Briefcase, Mail, MapPin, DollarSign
 } from 'lucide-react';
 import { adminService } from '../services';
 import { formatDate } from '../utils/format.js';
@@ -928,33 +928,38 @@ function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpe
                     <div className="grid gap-3">
                       {topMatches.map((match) => {
                         const job = match.jobId || {};
+                        const title = job.jobTitle || job.title || 'Job Title Unavailable';
+                        const company = job.companyName || job.company || 'Company';
+                        const applyUrl = job.careerPageUrl || job.jobUrl || job.url || job.companyWebsite;
+                        const score = match.overallMatch ?? match.matchScore ?? 0;
+                        const salaryText = job.salary?.min ? `₹${(job.salary.min / 100000).toFixed(1)}L - ₹${(job.salary.max / 100000).toFixed(1)}L` : (typeof job.salary === 'string' ? job.salary : '');
                         return (
-                          <div key={match._id} className="rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300 transition-all">
+                          <div key={match._id} className="rounded-xl border border-slate-200 bg-white p-4 hover:border-violet-300 transition-all">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <h4 className="font-bold text-slate-900 text-sm">{job.title || 'Job Title Unavailable'}</h4>
-                                <p className="text-xs text-slate-600 font-semibold mt-0.5">{job.company || 'Company'}</p>
+                                <h4 className="font-bold text-slate-900 text-sm">{title}</h4>
+                                <p className="text-xs text-slate-600 font-semibold mt-0.5">{company}</p>
                                 <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                                   <span>{job.location || 'Location'}</span>
-                                  {job.salary && <span>· {job.salary}</span>}
+                                  {salaryText && <span>· {salaryText}</span>}
                                   {job.source && <span>· Source: {job.source}</span>}
                                 </div>
                               </div>
 
                               <div className="flex flex-col items-end gap-1.5 shrink-0">
                                 <span className={`rounded-xl px-2.5 py-1 text-xs font-black shadow-xs ${
-                                  match.matchScore >= 80 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  score >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
                                 }`}>
-                                  {match.matchScore}% Match
+                                  {score}% Match
                                 </span>
-                                {job.url && (
+                                {applyUrl && (
                                   <a
-                                    href={job.url}
+                                    href={applyUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline font-semibold"
+                                    className="flex items-center gap-1 text-[11px] text-violet-600 hover:text-violet-800 hover:underline font-semibold"
                                   >
-                                    View Post <ExternalLink className="h-3 w-3" />
+                                    Apply Now <ExternalLink className="h-3 w-3" />
                                   </a>
                                 )}
                               </div>
@@ -1094,7 +1099,7 @@ function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpe
 /* ─── Main Admin Dashboard Component ────────────────────────────── */
 export default function AdminDashboard() {
   const { user: currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState('monitor'); // 'monitor' | 'users' | 'logs'
+  const [activeTab, setActiveTab] = useState('monitor'); // 'monitor' | 'users' | 'logs' | 'jobs'
 
   // Stats state
   const [stats, setStats] = useState(null);
@@ -1120,6 +1125,16 @@ export default function AdminDashboard() {
   const [logLiveOnly, setLogLiveOnly] = useState(false);
   const [logPage, setLogPage] = useState(1);
   const [logPagination, setLogPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
+
+  // Admin Jobs state
+  const [adminJobs, setAdminJobs] = useState([]);
+  const [adminJobsLoading, setAdminJobsLoading] = useState(false);
+  const [jobSearch, setJobSearch] = useState('');
+  const [jobStatusFilter, setJobStatusFilter] = useState('all');
+  const [jobSourceFilter, setJobSourceFilter] = useState('all');
+  const [jobSortBy, setJobSortBy] = useState('latest');
+  const [adminJobPage, setAdminJobPage] = useState(1);
+  const [adminJobPagination, setAdminJobPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
 
   // Modals state
   const [infoModalUser, setInfoModalUser] = useState(null);
@@ -1195,6 +1210,27 @@ export default function AdminDashboard() {
     }
   }, [logPage, logSearch, logActionFilter, logStatusFilter, logLiveOnly]);
 
+  /* ─── Fetch Admin Jobs ─────────────────────────────────────────── */
+  const fetchAdminJobs = useCallback(async () => {
+    setAdminJobsLoading(true);
+    try {
+      const res = await adminService.getJobs({
+        page: adminJobPage,
+        limit: 20,
+        search: jobSearch,
+        status: jobStatusFilter,
+        source: jobSourceFilter,
+        sortBy: jobSortBy,
+      });
+      setAdminJobs(res.jobs || []);
+      setAdminJobPagination(res.pagination || { page: 1, limit: 20, total: 0, totalPages: 1 });
+    } catch (err) {
+      toast.error(err.message || 'Failed to load jobs');
+    } finally {
+      setAdminJobsLoading(false);
+    }
+  }, [adminJobPage, jobSearch, jobStatusFilter, jobSourceFilter, jobSortBy]);
+
   // Initial load
   useEffect(() => {
     fetchStats();
@@ -1208,6 +1244,10 @@ export default function AdminDashboard() {
     if (activeTab === 'logs') fetchLogs();
   }, [activeTab, fetchLogs]);
 
+  useEffect(() => {
+    if (activeTab === 'jobs') fetchAdminJobs();
+  }, [activeTab, fetchAdminJobs]);
+
   // Auto-refresh interval (every 12 seconds for stats and live monitor)
   useEffect(() => {
     if (!autoRefresh) return;
@@ -1215,9 +1255,10 @@ export default function AdminDashboard() {
       fetchStats();
       if (activeTab === 'users') fetchUsers();
       if (activeTab === 'logs') fetchLogs();
+      if (activeTab === 'jobs') fetchAdminJobs();
     }, 12000);
     return () => clearInterval(refreshTimerRef.current);
-  }, [autoRefresh, activeTab, fetchStats, fetchUsers, fetchLogs]);
+  }, [autoRefresh, activeTab, fetchStats, fetchUsers, fetchLogs, fetchAdminJobs]);
 
   /* ─── Actions ──────────────────────────────────────────────────── */
   const handleForceLogout = async (userId, userName) => {
@@ -1286,6 +1327,7 @@ export default function AdminDashboard() {
               fetchStats();
               if (activeTab === 'users') fetchUsers();
               if (activeTab === 'logs') fetchLogs();
+              if (activeTab === 'jobs') fetchAdminJobs();
               toast.success('Admin data refreshed');
             }}
             className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors"
@@ -1425,6 +1467,23 @@ export default function AdminDashboard() {
             activeTab === 'logs' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
           }`}>
             {stats?.activity?.totalLogs ?? 0}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('jobs')}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+            activeTab === 'jobs'
+              ? 'bg-violet-600 text-white shadow-md'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Briefcase className="h-4 w-4" />
+          <span>Job Listings</span>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+            activeTab === 'jobs' ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-700'
+          }`}>
+            {stats?.entities?.jobs ?? 0}
           </span>
         </button>
       </div>
@@ -2039,6 +2098,282 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ─── TAB 4: Job Listings ──────────────────────────────────────── */}
+      {activeTab === 'jobs' && (
+        <div className="space-y-4">
+          {/* Header + Filters */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">All Job Listings</h2>
+              <p className="text-xs text-slate-500">
+                {adminJobPagination.total} jobs in the system — manage, search and delete entries
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search company, title, location…"
+                value={jobSearch}
+                onChange={(e) => { setJobSearch(e.target.value); setAdminJobPage(1); }}
+                className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              />
+            </div>
+            {/* Source filter */}
+            <select
+              value={jobSourceFilter}
+              onChange={(e) => { setJobSourceFilter(e.target.value); setAdminJobPage(1); }}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+            >
+              <option value="all">All Sources (603 jobs)</option>
+              <option value="Company Career Page">🏢 India IT Majors (51 jobs)</option>
+              <option value="Arbeitnow API">Arbeitnow API (527 jobs)</option>
+              <option value="RemoteOK API">RemoteOK API (25 jobs)</option>
+            </select>
+            {/* Sort filter */}
+            <select
+              value={jobSortBy}
+              onChange={(e) => { setJobSortBy(e.target.value); setAdminJobPage(1); }}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+            >
+              <option value="latest">✨ Latest Added (India jobs first)</option>
+              <option value="ats">🎯 Highest ATS Match Score</option>
+              <option value="posted">📅 Most Recently Posted</option>
+              <option value="company">🔤 Company Name (A-Z)</option>
+            </select>
+            {/* Status filter */}
+            <select
+              value={jobStatusFilter}
+              onChange={(e) => { setJobStatusFilter(e.target.value); setAdminJobPage(1); }}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+            >
+              <option value="all">All Statuses</option>
+              <option value="new">New</option>
+              <option value="saved">Saved</option>
+              <option value="applied">Applied</option>
+              <option value="rejected">Rejected</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+
+          {/* Table */}
+          {adminJobsLoading ? (
+            <div className="flex items-center justify-center py-16 text-slate-400">
+              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+              <span className="text-sm font-semibold">Loading jobs…</span>
+            </div>
+          ) : adminJobs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-400 mb-3">
+                <Briefcase className="h-7 w-7" />
+              </div>
+              <p className="font-bold text-slate-700">No jobs found</p>
+              <p className="text-xs text-slate-400 mt-1">Try adjusting the search or filters</p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">#</th>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">Company</th>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">Role / Title</th>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">Location</th>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">Salary (INR)</th>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">ATS Score</th>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">Top Skills</th>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">Status</th>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">Apply</th>
+                      <th className="px-4 py-3 font-bold uppercase tracking-wider text-slate-500">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {adminJobs.map((job, idx) => {
+                      const score = job.matchScore || 0;
+                      const scoreColor = score >= 75 ? 'text-emerald-600' : score >= 50 ? 'text-amber-500' : score > 0 ? 'text-rose-500' : 'text-slate-400';
+                      const scoreBg = score >= 75 ? 'bg-emerald-50 border-emerald-200' : score >= 50 ? 'bg-amber-50 border-amber-200' : score > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200';
+                      const scoreBarColor = score >= 75 ? 'bg-emerald-500' : score >= 50 ? 'bg-amber-400' : score > 0 ? 'bg-rose-400' : 'bg-slate-300';
+                      const topSkills = (job.matchedSkills && job.matchedSkills.length > 0 ? job.matchedSkills : job.skills || []).slice(0, 3);
+                      const applyUrl = job.careerPageUrl || job.jobUrl || job.companyWebsite;
+                      return (
+                      <tr key={job._id} className="hover:bg-violet-50/40 transition-colors">
+                        <td className="px-4 py-3 text-slate-400 font-mono">
+                          {(adminJobPagination.page - 1) * adminJobPagination.limit + idx + 1}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700 font-black text-xs">
+                              {job.companyName.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-800 truncate max-w-[140px]">{job.companyName}</p>
+                              <p className="text-[10px] text-slate-400 truncate max-w-[140px]">{job.source}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-slate-800 truncate max-w-[200px]">{job.jobTitle}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{job.experienceRequired}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1 text-slate-600">
+                            <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+                            <span className="truncate max-w-[130px]">{job.location}</span>
+                          </div>
+                          {job.remote && (
+                            <span className="mt-0.5 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                              Remote
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {job.salary?.min ? (
+                            <span className="font-semibold text-slate-700">
+                              ₹{(job.salary.min / 100000).toFixed(1)}L – ₹{(job.salary.max / 100000).toFixed(1)}L
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+
+                        {/* ATS / Match Score */}
+                        <td className="px-4 py-3">
+                          <div className={`inline-flex flex-col items-center rounded-xl border px-3 py-1.5 min-w-[60px] ${scoreBg}`}>
+                            <span className={`text-base font-black leading-none ${scoreColor}`}>
+                              {score > 0 ? `${score}%` : '—'}
+                            </span>
+                            {score > 0 && (
+                              <>
+                                <div className="mt-1 h-1 w-10 rounded-full bg-slate-200 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${scoreBarColor}`}
+                                    style={{ width: `${score}%` }}
+                                  />
+                                </div>
+                                <span className={`mt-0.5 text-[9px] font-bold uppercase tracking-wider ${scoreColor}`}>
+                                  {score >= 75 ? 'Strong' : score >= 50 ? 'Good' : 'Low'}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Top Skills */}
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1 max-w-[180px]">
+                            {topSkills.length > 0 ? topSkills.map((skill, si) => (
+                              <span
+                                key={si}
+                                className="inline-flex rounded-full bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
+                              >
+                                {skill}
+                              </span>
+                            )) : (
+                              <span className="text-slate-400 text-[10px]">—</span>
+                            )}
+                            {(job.skills || []).length > 3 && (
+                              <span className="inline-flex rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                                +{(job.skills || []).length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                            job.status === 'new' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : job.status === 'saved' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : job.status === 'applied' ? 'bg-violet-50 text-violet-700 border-violet-200'
+                            : job.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}>
+                            {job.status}
+                          </span>
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            {job.postedDate ? new Date(job.postedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                          </p>
+                        </td>
+
+                        {/* Apply Link */}
+                        <td className="px-4 py-3">
+                          {applyUrl ? (
+                            <a
+                              href={applyUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-violet-300 bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-sm hover:from-violet-700 hover:to-indigo-700 transition-all whitespace-nowrap"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Apply Now
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 text-[10px]">No link</span>
+                          )}
+                        </td>
+
+                        {/* Delete */}
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm(`Delete "${job.jobTitle}" at ${job.companyName}?`)) return;
+                              try {
+                                const res = await adminService.deleteJob(job._id);
+                                toast.success(res.message || 'Job deleted');
+                                fetchAdminJobs();
+                                fetchStats();
+                              } catch (err) {
+                                toast.error(err.message || 'Failed to delete job');
+                              }
+                            }}
+                            className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[10px] font-bold text-red-600 hover:bg-red-100 transition-colors"
+                            title="Delete job"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {adminJobPagination.totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
+                  <span className="text-xs text-slate-500">
+                    Page {adminJobPagination.page} of {adminJobPagination.totalPages} · {adminJobPagination.total} total jobs
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setAdminJobPage(p => Math.max(1, p - 1))}
+                      disabled={adminJobPagination.page === 1}
+                      className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                    </button>
+                    <button
+                      onClick={() => setAdminJobPage(p => Math.min(adminJobPagination.totalPages, p + 1))}
+                      disabled={adminJobPagination.page === adminJobPagination.totalPages}
+                      className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
