@@ -116,7 +116,7 @@ export default function MeetFounder() {
             </div>
             <div className="cofounder-info">
               <div className="cofounder-header">
-                <h4 className="cofounder-name">Shrisail Chavan</h4>
+                <h4 className="cofounder-name">Shrishail Chavan</h4>
                 <span className="cofounder-badge">Co-Founder &amp; Full Stack Developer</span>
               </div>
               <p className="cofounder-desc">
