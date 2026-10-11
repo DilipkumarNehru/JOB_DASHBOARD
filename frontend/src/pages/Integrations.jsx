@@ -45,11 +45,11 @@ export default function Integrations() {
   const sync = async () => {
     setSyncing(true);
     try {
-      const res = await gmailService.sync();
-      toast.success(res.message);
+      const res = await gmailService.sync({ maxResults: 25, maxPages: 1 });
+      toast.success(res.message || 'Gmail synced successfully!');
       reload();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || 'Failed to sync Gmail');
     } finally {
       setSyncing(false);
     }
@@ -111,9 +111,14 @@ export default function Integrations() {
           )}
         </div>
 
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          <ShieldCheck className="h-4 w-4 text-emerald-600" />
-          Requires <code>GOOGLE_CLIENT_ID</code> & <code>GOOGLE_CLIENT_SECRET</code> in the server <code>.env</code>. OAuth is read-scope only.
+        <div className="mt-4 flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>Stored in your user database record. OAuth uses read-scope only.</span>
+          </div>
+          <Link to="/settings" className="font-semibold text-brand-600 hover:underline shrink-0">
+            Configure keys in Settings →
+          </Link>
         </div>
       </Card>
 

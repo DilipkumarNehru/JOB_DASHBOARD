@@ -97,12 +97,25 @@ export const syncEmails = async (req, res, next) => {
   try {
     const { default: User } = await import('../models/User.js');
     const { syncEmailsForUser } = await import('../services/gmailService.js');
-    const user = await User.findById(req.user.id).select('+gmailTokensEncrypted');
+    const user = await User.findById(req.user.id).select(
+      '+gmailTokensEncrypted +apiKeys.openaiApiKeyEncrypted +apiKeys.googleClientSecretEncrypted +apiKeys.n8nWebhookSecretEncrypted'
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (!user.gmailConnected) {
+      return res.status(400).json({
+        success: false,
+        message: 'Gmail is not connected. Please connect your Gmail account in the Gmail Inbox page first.'
+      });
+    }
 
     const { maxResults, maxPages, query } = req.body || {};
     const stats = await syncEmailsForUser(user, {
-      maxResults: Math.min(parseInt(maxResults) || 50, 100),
-      maxPages: Math.min(parseInt(maxPages) || 2, 5),
+      maxResults: Math.min(parseInt(maxResults) || 25, 100),
+      maxPages: Math.min(parseInt(maxPages) || 1, 5),
       query: String(query || '').trim(),
     });
 
@@ -118,7 +131,19 @@ export const syncEmails = async (req, res, next) => {
       linked: stats.linked,
       message: `Synced ${stats.totalFetched} emails (${stats.newEmails} new, ${stats.updatedEmails} updated, ${stats.linked} auto-linked)`
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err && err.code === 'GOOGLE_NOT_CONFIGURED') {
+      return res.status(503).json({ success: false, message: 'Google OAuth is not configured. Please set your Google credentials in Settings → API Keys.' });
+    }
+    if (err && (err.status === 403 || err.status === 401 || err.code === 'GOOGLE_TOKEN_REVOKED')) {
+      return res.status(err.status || 401).json({ success: false, message: err.message || 'Gmail connection expired. Please reconnect your Google account.' });
+    }
+    logger.error('Email sync failed: ' + err.message);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to sync emails. Please check your connection.',
+    });
+  }
 };
 
 export const relinkEmails = async (req, res, next) => {

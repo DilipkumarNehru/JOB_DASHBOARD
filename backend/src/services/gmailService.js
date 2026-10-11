@@ -62,7 +62,7 @@ export const buildAuthedClient = async (user) => {
     err.status = 403;
     throw err;
   }
-  const client = createOAuth2Client();
+  const client = createOAuth2Client(user);
   client.setCredentials(tokens);
 
   const now = Date.now();
@@ -91,7 +91,7 @@ export const buildAuthedClient = async (user) => {
 };
 
 // ---------------------------------------------------------------------------
-// Sync pipeline (upsert, duplicate-aware)
+// Sync pipeline — parallel batch fetching for speed
 // ---------------------------------------------------------------------------
 
 const SYNC_MANAGED_FIELDS = [
@@ -101,7 +101,30 @@ const SYNC_MANAGED_FIELDS = [
   'isRead', 'hasAttachments', 'attachments', 'webViewLink'
 ];
 
-export const syncEmailsForUser = async (user, { maxResults = 50, maxPages = 2, query = '' } = {}) => {
+// Concurrently fetch message details in batches to stay within Gmail API rate limits
+const CONCURRENCY = 5;
+
+const processMessageBatch = async (client, metaBatch, user, gmailEmail) => {
+  const results = await Promise.allSettled(
+    metaBatch.map(meta => getMessageDetail(client, meta.id))
+  );
+  return results
+    .map((r, i) => {
+      if (r.status === 'rejected') {
+        logger.warn(`Could not fetch Gmail message ${metaBatch[i].id}: ${r.reason?.message}`);
+        return null;
+      }
+      try {
+        return parseGmailMessage(r.value, gmailEmail || '');
+      } catch (err) {
+        logger.warn(`Could not parse Gmail message ${metaBatch[i].id}: ${err.message}`);
+        return null;
+      }
+    })
+    .filter(Boolean);
+};
+
+export const syncEmailsForUser = async (user, { maxResults = 20, maxPages = 1, query = '' } = {}) => {
   const client = await buildAuthedClient(user);
 
   let totalFetched = 0;
@@ -119,54 +142,91 @@ export const syncEmailsForUser = async (user, { maxResults = 50, maxPages = 2, q
     });
     if (page === 0) totalInGmail = resultSizeEstimate;
 
-    for (const meta of messages) {
+    if (!messages || messages.length === 0) break;
+
+    // ------------------------------------------------------------------
+    // Step 1: Fetch all message details in parallel (CONCURRENCY at a time)
+    // ------------------------------------------------------------------
+    const allParsed = [];
+    for (let i = 0; i < messages.length; i += CONCURRENCY) {
+      const batch = messages.slice(i, i + CONCURRENCY);
+      const parsed = await processMessageBatch(client, batch, user, user.gmailEmail);
+      allParsed.push(...parsed);
+    }
+    totalFetched += allParsed.length;
+
+    // ------------------------------------------------------------------
+    // Step 2: Bulk-check which message IDs already exist in the DB
+    // ------------------------------------------------------------------
+    const incomingIds = allParsed.map(p => p.gmailMessageId);
+    const existingEmails = await Email.find({
+      userId: user._id,
+      gmailMessageId: { $in: incomingIds }
+    }).lean();
+    const existingMap = new Map(existingEmails.map(e => [e.gmailMessageId, e]));
+
+    // ------------------------------------------------------------------
+    // Step 3: Process each parsed message
+    // ------------------------------------------------------------------
+    const toInsert = [];
+    for (const parsed of allParsed) {
       try {
-        const raw = await getMessageDetail(client, meta.id);
-        const parsed = parseGmailMessage(raw, user.gmailEmail || '');
-        totalFetched++;
-
-        const existing = await Email.findOne({ userId: user._id, gmailMessageId: parsed.gmailMessageId });
-
+        const existing = existingMap.get(parsed.gmailMessageId);
         if (existing) {
           let changed = false;
+          const updates = {};
           for (const field of SYNC_MANAGED_FIELDS) {
-            const current = field === 'attachments' ? JSON.stringify(existing[field]) : existing[field];
-            const incoming = field === 'attachments' ? JSON.stringify(parsed[field]) : parsed[field];
-            if (JSON.stringify(current) !== JSON.stringify(incoming)) {
-              existing[field] = parsed[field];
+            const currentVal = JSON.stringify(existing[field]);
+            const incomingVal = JSON.stringify(parsed[field]);
+            if (currentVal !== incomingVal) {
+              updates[field] = parsed[field];
               changed = true;
             }
           }
           if (changed) {
-            await existing.save();
+            await Email.updateOne({ _id: existing._id }, { $set: updates });
             updatedEmails++;
           }
-          continue;
+        } else {
+          toInsert.push(parsed);
         }
-
-        const classification = await classifyEmail({
-          subject: parsed.subject,
-          bodySnippet: parsed.bodySnippet,
-          sender: parsed.sender,
-        });
-
-        const email = await Email.create({
-          userId: user._id,
-          ...parsed,
-          category: classification.category || 'OTHER',
-          aiConfidence: classification.confidence || 0,
-          companyName: classification.companyName || '',
-          jobRole: classification.jobRole || '',
-          classificationReason: classification.classificationReason || '',
-          status: classification.confidence >= 0.7 ? 'unlinked' : 'needs_review',
-        });
-        newEmails++;
-
-        const match = await matchEmailToApplication(email);
-        if (match.linked) linked++;
       } catch (err) {
-        logger.warn(`Could not process Gmail message ${meta.id}: ${err.message}`);
+        logger.warn(`Could not process existing message ${parsed.gmailMessageId}: ${err.message}`);
       }
+    }
+
+    // Process new emails in concurrent chunks of 4 with safe fallback
+    const CLASSIFY_CONCURRENCY = 4;
+    for (let c = 0; c < toInsert.length; c += CLASSIFY_CONCURRENCY) {
+      const chunk = toInsert.slice(c, c + CLASSIFY_CONCURRENCY);
+      await Promise.allSettled(chunk.map(async (parsed) => {
+        try {
+          const classification = await classifyEmail({
+            subject: parsed.subject,
+            bodySnippet: parsed.bodySnippet,
+            sender: parsed.sender,
+          }, user).catch(() => ({ category: 'OTHER', confidence: 0.5, companyName: '', jobRole: '', classificationReason: 'Fallback' }));
+
+          const email = await Email.create({
+            userId: user._id,
+            ...parsed,
+            category: classification.category || 'OTHER',
+            aiConfidence: classification.confidence || 0,
+            companyName: classification.companyName || '',
+            jobRole: classification.jobRole || '',
+            classificationReason: classification.classificationReason || '',
+            status: (classification.confidence || 0) >= 0.7 ? 'unlinked' : 'needs_review',
+          });
+          newEmails++;
+
+          // Link to job application if possible (non-blocking)
+          matchEmailToApplication(email).then(match => {
+            if (match && match.linked) linked++;
+          }).catch(() => {});
+        } catch (err) {
+          logger.warn(`Could not save Gmail message ${parsed.gmailMessageId}: ${err.message}`);
+        }
+      }));
     }
 
     pageToken = nextPageToken;

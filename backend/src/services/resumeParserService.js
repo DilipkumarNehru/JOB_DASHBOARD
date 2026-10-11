@@ -486,11 +486,12 @@ const algorithmicParse = (rawText) => {
   };
 };
 
-export const parseResume = async (filePath, fileType) => {
+export const parseResume = async (filePath, fileType, user = null) => {
   const rawText = await extractText(filePath, fileType);
 
-  // ── Try AI parsing first (if OPENAI_API_KEY is configured) ──────────────
+  // ── Try AI parsing first (if OPENAI_API_KEY is configured in DB or env) ────
   const aiResult = await generateCompletion({
+    user,
     systemPrompt: `You are an expert resume parsing engine. Read the resume text thoroughly from top to bottom.
 STRICT RULES:
 - Extract all parameters accurately: name, email, phone, summary, skills, experienceYears, companies, jobTitles, education, certifications, projects, location.

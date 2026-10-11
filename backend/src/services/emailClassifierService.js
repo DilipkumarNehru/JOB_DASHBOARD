@@ -31,10 +31,11 @@ const algorithmicClassify = (subject, body) => {
   return { category: 'OTHER', confidence: 0.5 };
 };
 
-export const classifyEmail = async (email) => {
+export const classifyEmail = async (email, user = null) => {
   const { subject, bodySnippet, sender } = email;
 
   const aiResult = await generateCompletion({
+    user,
     systemPrompt: `You are an email classifier for a job search app.
 Classify the email into one of these categories: ${EMAIL_CATEGORIES.join(', ')}.
 Also extract: companyName, jobRole, confidence (0.0-1.0), classificationReason.

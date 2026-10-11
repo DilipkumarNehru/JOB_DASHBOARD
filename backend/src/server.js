@@ -98,12 +98,18 @@ connectDB().then(async () => {
     console.warn('[Admin] Seed error:', err.message);
   }
   try {
+    const { syncUserApiKeysFromEnv } = await import('./config/seedUserApiKeys.js');
+    await syncUserApiKeysFromEnv();
+  } catch (err) {
+    console.warn('[API Keys] Seed error:', err.message);
+  }
+  try {
     const { startScheduledJobs } = await import('./jobs/cronJobs.js');
     startScheduledJobs();
   } catch (err) {
     console.warn('[Cron] Could not start scheduled jobs:', err.message);
   }
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Job Dashboard API running at http://localhost:${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
     console.log(`🛡️ Admin API: http://localhost:${PORT}/api/admin/stats`);

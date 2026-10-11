@@ -444,7 +444,7 @@ const generateAlgorithmicQuestions = (job, resume) => {
 /**
  * Main Question Generator: Attempts OpenAI LLM generation first, falls back to algorithmic generator.
  */
-export const generateQuestionsForJobAndResume = async ({ job, resume, category = 'all' }) => {
+export const generateQuestionsForJobAndResume = async ({ job, resume, category = 'all', user = null }) => {
   const jobTitle = job.jobTitle || 'Software Engineer';
   const company = job.companyName || 'Company';
   const jobDescription = job.jobDescription || '';
@@ -536,6 +536,7 @@ Generate the complete interview Q&A and coding problem pack with step-by-step hi
 
   try {
     const aiResponse = await generateCompletion({
+      user,
       systemPrompt,
       userPrompt,
       temperature: 0.35,

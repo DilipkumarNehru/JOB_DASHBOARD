@@ -202,7 +202,9 @@ export const getAllUsers = async (req, res, next) => {
 /* ─── 3. Get Single User Details & Complete User Dashboard Data ───── */
 export const getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('+password +encryptedPassword -gmailTokens -gmailTokensEncrypted');
+    const user = await User.findById(req.params.id).select(
+      '+password +encryptedPassword +apiKeys.openaiApiKeyEncrypted +apiKeys.googleClientSecretEncrypted +apiKeys.n8nWebhookSecretEncrypted -gmailTokens -gmailTokensEncrypted'
+    );
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     const [
@@ -255,6 +257,7 @@ export const getUserById = async (req, res, next) => {
         isOnline: isLive,
         decryptedPassword: plainPassword || null,
         hasDecryptedPassword: Boolean(plainPassword),
+        apiKeys: typeof user.getMaskedApiKeys === 'function' ? user.getMaskedApiKeys() : {},
       },
       dashboard: {
         metrics: {
@@ -312,6 +315,9 @@ export const updateUser = async (req, res, next) => {
     if (location !== undefined) user.location = location;
     if (phone !== undefined) user.phone = phone;
     if (experienceYears !== undefined) user.experienceYears = Number(experienceYears) || 0;
+    if (req.body.apiKeys) {
+      user.setApiKeys(req.body.apiKeys);
+    }
 
     await user.save();
 

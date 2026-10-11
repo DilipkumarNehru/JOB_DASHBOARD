@@ -5,17 +5,35 @@ import { logger } from '../../utils/logger.js';
 // OAuth 2.0 client factory
 // ---------------------------------------------------------------------------
 
-export const createOAuth2Client = () => {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    const err = new Error('Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend/.env');
+export const createOAuth2Client = (userOrKeys = null) => {
+  let clientId = '';
+  let clientSecret = '';
+  let redirectUri = '';
+
+  if (userOrKeys) {
+    if (typeof userOrKeys.getDecryptedApiKeys === 'function') {
+      const keys = userOrKeys.getDecryptedApiKeys();
+      clientId = keys.googleClientId;
+      clientSecret = keys.googleClientSecret;
+      redirectUri = keys.googleRedirectUri;
+    } else if (userOrKeys.googleClientId) {
+      clientId = userOrKeys.googleClientId;
+      clientSecret = userOrKeys.googleClientSecret;
+      redirectUri = userOrKeys.googleRedirectUri;
+    }
+  }
+
+  // Fallback to process.env if not provided in user config
+  clientId = clientId || process.env.GOOGLE_CLIENT_ID;
+  clientSecret = clientSecret || process.env.GOOGLE_CLIENT_SECRET;
+  redirectUri = redirectUri || process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/gmail/callback';
+
+  if (!clientId || !clientSecret) {
+    const err = new Error('Google OAuth is not configured. Set Google Client ID and Secret in your account settings or backend/.env');
     err.code = 'GOOGLE_NOT_CONFIGURED';
     throw err;
   }
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/gmail/callback'
-  );
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 };
 
 export const GMAIL_SCOPES = [
@@ -24,8 +42,8 @@ export const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile'
 ];
 
-export const getGmailAuthUrl = (state) => {
-  const oAuth2Client = createOAuth2Client();
+export const getGmailAuthUrl = (state, userOrKeys = null) => {
+  const oAuth2Client = createOAuth2Client(userOrKeys);
   return oAuth2Client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
@@ -35,8 +53,8 @@ export const getGmailAuthUrl = (state) => {
   });
 };
 
-export const getTokensFromCode = async (code) => {
-  const oAuth2Client = createOAuth2Client();
+export const getTokensFromCode = async (code, userOrKeys = null) => {
+  const oAuth2Client = createOAuth2Client(userOrKeys);
   const { tokens } = await oAuth2Client.getToken(code);
   if (!tokens || !tokens.access_token) {
     const err = new Error('Google did not return an access token');
@@ -132,6 +150,9 @@ export const decodeHeader = (value) => {
       out.push(full);
     }
     lastIndex = match.index + full.length;
+    if (pattern.lastIndex === match.index) {
+      pattern.lastIndex++;
+    }
   }
   if (lastIndex < rest.length) out.push(rest.slice(lastIndex));
   return out.join('').replace(/\s+/g, ' ').trim();
@@ -144,14 +165,23 @@ const findHeader = (headers, name) => {
 };
 
 const parseAddressList = (value) => {
-  if (!value) return [];
+  if (!value || typeof value !== 'string') return [];
   const list = [];
-  const re = /"?([^"<,;]*)"?\s*(?:<([^>]+)>)?/g;
-  let m;
-  while ((m = re.exec(value)) !== null) {
-    const name = (m[1] || '').trim();
-    const email = (m[2] || '').trim().toLowerCase();
-    if (name || email) list.push(email || name);
+  const parts = value.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(/<([^>]+)>/);
+    if (match && match[1]) {
+      list.push(match[1].trim().toLowerCase());
+    } else {
+      const emailMatch = trimmed.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) {
+        list.push(emailMatch[0].toLowerCase());
+      } else {
+        list.push(trimmed.replace(/^"|"$/g, ''));
+      }
+    }
   }
   return list.filter(Boolean);
 };

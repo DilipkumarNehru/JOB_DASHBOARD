@@ -12,12 +12,18 @@ export const formatDateTime = (value) => {
 
 export const relativeTime = (value) => {
   if (!value) return '—';
-  const diff = dayjs().diff(dayjs(value), 'day');
-  if (diff <= 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
-  if (diff < 7) return `${diff} days ago`;
-  if (diff < 30) return `${Math.floor(diff / 7)} weeks ago`;
-  return dayjs(value).format('DD MMM YYYY');
+  const now = dayjs();
+  const dt = dayjs(value);
+  const diffMins = now.diff(dt, 'minute');
+  const diffHours = now.diff(dt, 'hour');
+  const diffDays = now.diff(dt, 'day');
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return dt.format('DD MMM YYYY');
 };
 
 export const formatBytes = (bytes) => {

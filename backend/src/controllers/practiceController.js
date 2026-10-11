@@ -183,6 +183,7 @@ export const generateQuestions = async (req, res, next) => {
       job,
       resume,
       category,
+      user: req.user,
     });
 
     // Save or update PracticeSession
