@@ -9,6 +9,9 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        // Allow long-running requests (Gmail sync, AI calls) up to 3 minutes
+        proxyTimeout: 180000,
+        timeout: 180000,
       },
       '/uploads': {
         target: 'http://localhost:5000',

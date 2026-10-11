@@ -9,6 +9,8 @@ export const authService = {
   updateProfile: (data) => api.put('/auth/profile', data),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (data) => api.post('/auth/reset-password', data),
+  getApiKeys: () => api.get('/auth/api-keys'),
+  updateApiKeys: (data) => api.put('/auth/api-keys', data),
 };
 
 export const resumeService = {
@@ -77,7 +79,7 @@ export const emailService = {
   getAll: (params) => api.get('/emails', { params }),
   get: (id) => api.get(`/emails/${id}`),
   categories: () => api.get('/emails/categories'),
-  sync: (data) => api.post('/emails/sync', data),
+  sync: (data) => api.post('/emails/sync', data, { timeout: 120000 }),
   relink: () => api.post('/emails/relink'),
   updateCategory: (id, data) => api.put(`/emails/${id}/category`, data),
   markRead: (id, read) => api.put(`/emails/${id}/read`, { read }),
@@ -124,7 +126,7 @@ export const analyticsService = {
 export const gmailService = {
   getAuthUrl: () => api.get('/gmail/auth'),
   status: () => api.get('/gmail/status'),
-  sync: (data) => api.post('/gmail/sync', data),
+  sync: (data) => api.post('/gmail/sync', data, { timeout: 120000 }),
   disconnect: () => api.post('/gmail/disconnect'),
 };
 

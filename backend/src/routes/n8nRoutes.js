@@ -138,8 +138,9 @@ router.post('/jobs/query', verifySecret, async (req, res, next) => {
 router.post('/trigger', async (req, res, next) => {
   try {
     const { workflow, payload } = req.body;
+    const userId = req.body.userId || payload?.userId || req.user?.id;
     const { triggerN8nWorkflow } = await import('../integrations/n8n/webhookHandler.js');
-    const result = await triggerN8nWorkflow(workflow, payload || {});
+    const result = await triggerN8nWorkflow(workflow, payload || {}, userId);
     res.json(result);
   } catch (err) { next(err); }
 });
@@ -147,8 +148,9 @@ router.post('/trigger', async (req, res, next) => {
 // Simulated AI classification endpoint used by n8n workflows
 router.post('/ai/classify', verifySecret, async (req, res, next) => {
   try {
-    const { text, type } = req.body;
+    const { text, type, userId } = req.body;
     const result = await generateCompletion({
+      user: userId,
       systemPrompt: type === 'email'
         ? 'Classify email into one of: INTERVIEW, SHORTLIST, REJECTION, OFFER, ASSESSMENT, RECRUITER_CONTACT, JOB_OPENING, FOLLOW_UP, JOB_APPLICATION, ONBOARDING, COURSE, CERTIFICATION, PROMOTION, SOCIAL, NEWSLETTER, OTHER. Extract companyName, jobRole, confidence. Return JSON.'
         : 'Extract key skills from job description. Return JSON with skills[].',

@@ -307,7 +307,7 @@ export const detectResumeDomain = (parsedProfile) => {
  * @param {Object} job - Job document
  * @returns {Object} match result with scores and skill lists
  */
-export const calculateMatch = async (resume, job) => {
+export const calculateMatch = async (resume, job, user = null) => {
   const profile = resume.parsedProfile || {};
   const resumeSkills = profile.skills || [];
   const rawText = resume.rawText || '';
@@ -386,7 +386,9 @@ export const calculateMatch = async (resume, job) => {
   // ── AI explanation ────────────────────────────────────────────────────────
   let whyItMatches = '';
   try {
+    const effectiveUser = user || resume.userId;
     const aiResult = await generateCompletion({
+      user: effectiveUser,
       systemPrompt: 'You are a career counselor. In 2-3 sentences, explain why this candidate is a good or poor fit for this job based on their ATS score. Be specific about skills, experience, and role alignment. Be honest.',
       userPrompt: `Candidate profile:
 Skills: ${resumeSkills.slice(0, 15).join(', ')}
