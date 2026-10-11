@@ -30,7 +30,7 @@ export default function Settings() {
     openaiModel: 'gpt-4o-mini',
     googleClientId: '',
     googleClientSecret: '',
-    googleRedirectUri: 'http://localhost:5000/api/gmail/callback',
+    googleRedirectUri: typeof window !== 'undefined' ? `${window.location.origin}/api/gmail/callback` : 'http://localhost:5000/api/gmail/callback',
     n8nBaseUrl: 'http://localhost:5678',
     n8nWebhookSecret: '',
     source: 'database',
@@ -62,7 +62,7 @@ export default function Settings() {
           openaiModel: res.apiKeys.openaiModel || 'gpt-4o-mini',
           googleClientId: res.apiKeys.googleClientId || '',
           googleClientSecret: res.apiKeys.googleClientSecret || '',
-          googleRedirectUri: res.apiKeys.googleRedirectUri || 'http://localhost:5000/api/gmail/callback',
+          googleRedirectUri: res.apiKeys.googleRedirectUri || (typeof window !== 'undefined' ? `${window.location.origin}/api/gmail/callback` : 'http://localhost:5000/api/gmail/callback'),
           n8nBaseUrl: res.apiKeys.n8nBaseUrl || 'http://localhost:5678',
           n8nWebhookSecret: res.apiKeys.n8nWebhookSecret || '',
           source: res.apiKeys.source || 'database',
@@ -377,7 +377,7 @@ export default function Settings() {
                 <input
                   type="text"
                   className="input font-mono text-xs"
-                  placeholder="http://localhost:5000/api/gmail/callback"
+                  placeholder={typeof window !== 'undefined' ? `${window.location.origin}/api/gmail/callback` : 'https://your-domain.com/api/gmail/callback'}
                   value={apiKeys.googleRedirectUri}
                   onChange={(e) => handleApiKeyChange('googleRedirectUri', e.target.value)}
                 />

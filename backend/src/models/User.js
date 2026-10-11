@@ -140,6 +140,14 @@ UserSchema.methods.setApiKeys = function (payload = {}) {
   }
 };
 
+const resolveRedirectUri = (storedUri) => {
+  const envUri = process.env.GOOGLE_REDIRECT_URI;
+  if (envUri && (!storedUri || storedUri === 'http://localhost:5000/api/gmail/callback')) {
+    return envUri;
+  }
+  return storedUri || envUri || 'http://localhost:5000/api/gmail/callback';
+};
+
 UserSchema.methods.getDecryptedApiKeys = function () {
   const encOpenAi = this.apiKeys?.openaiApiKeyEncrypted ? decryptSecret(this.apiKeys.openaiApiKeyEncrypted) : '';
   const encGoogleSecret = this.apiKeys?.googleClientSecretEncrypted ? decryptSecret(this.apiKeys.googleClientSecretEncrypted) : '';
@@ -150,7 +158,7 @@ UserSchema.methods.getDecryptedApiKeys = function () {
     openaiModel: this.apiKeys?.openaiModel || process.env.OPENAI_MODEL || 'gpt-4o-mini',
     googleClientId: this.apiKeys?.googleClientId || process.env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: encGoogleSecret || process.env.GOOGLE_CLIENT_SECRET || '',
-    googleRedirectUri: this.apiKeys?.googleRedirectUri || process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/gmail/callback',
+    googleRedirectUri: resolveRedirectUri(this.apiKeys?.googleRedirectUri),
     n8nBaseUrl: this.apiKeys?.n8nBaseUrl || process.env.N8N_BASE_URL || 'http://localhost:5678',
     n8nWebhookSecret: encN8nSecret || process.env.N8N_WEBHOOK_SECRET || 'job_dashboard_n8n_secret_token_2026',
     hasCustomOpenAI: Boolean(encOpenAi),
@@ -181,7 +189,7 @@ UserSchema.methods.getMaskedApiKeys = function () {
     googleClientSecret: encGoogleSecret || process.env.GOOGLE_CLIENT_SECRET || '',
     googleClientSecretMasked: mask(encGoogleSecret || process.env.GOOGLE_CLIENT_SECRET || ''),
     hasGoogleClientSecret: Boolean(encGoogleSecret || process.env.GOOGLE_CLIENT_SECRET),
-    googleRedirectUri: this.apiKeys?.googleRedirectUri || process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/gmail/callback',
+    googleRedirectUri: resolveRedirectUri(this.apiKeys?.googleRedirectUri),
 
     n8nBaseUrl: this.apiKeys?.n8nBaseUrl || process.env.N8N_BASE_URL || 'http://localhost:5678',
     n8nWebhookSecret: encN8nSecret || process.env.N8N_WEBHOOK_SECRET || 'job_dashboard_n8n_secret_token_2026',
@@ -207,7 +215,7 @@ export const getUserApiKeys = async (userOrId) => {
       openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       googleClientId: process.env.GOOGLE_CLIENT_ID || '',
       googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-      googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/gmail/callback',
+      googleRedirectUri: resolveRedirectUri(''),
       n8nBaseUrl: process.env.N8N_BASE_URL || 'http://localhost:5678',
       n8nWebhookSecret: process.env.N8N_WEBHOOK_SECRET || 'job_dashboard_n8n_secret_token_2026',
       source: 'env_fallback'
@@ -234,7 +242,7 @@ export const getUserApiKeys = async (userOrId) => {
     openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/gmail/callback',
+    googleRedirectUri: resolveRedirectUri(''),
     n8nBaseUrl: process.env.N8N_BASE_URL || 'http://localhost:5678',
     n8nWebhookSecret: process.env.N8N_WEBHOOK_SECRET || 'job_dashboard_n8n_secret_token_2026',
     source: 'env_fallback'
