@@ -32,17 +32,17 @@ export const handleCallback = async (req, res, next) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
     if (error) {
-      return res.redirect(`${frontendUrl}/integrations?gmail=error&reason=${encodeURIComponent(error)}`);
+      return res.redirect(`${frontendUrl}/gmail?gmail=error&reason=${encodeURIComponent(error)}`);
     }
     if (!code || !state) {
-      return res.redirect(`${frontendUrl}/integrations?gmail=error&reason=missing_params`);
+      return res.redirect(`${frontendUrl}/gmail?gmail=error&reason=missing_params`);
     }
 
     const user = await User.findOne({ gmailOAuthState: state }).select(
       '+gmailTokensEncrypted +apiKeys.openaiApiKeyEncrypted +apiKeys.googleClientSecretEncrypted +apiKeys.n8nWebhookSecretEncrypted'
     );
     if (!user) {
-      return res.redirect(`${frontendUrl}/integrations?gmail=error&reason=invalid_state`);
+      return res.redirect(`${frontendUrl}/gmail?gmail=error&reason=invalid_state`);
     }
 
     const tokens = await getTokensFromCode(code, user);
@@ -76,12 +76,20 @@ export const getGmailStatus = async (req, res, next) => {
     const user = await User.findById(req.user.id).select(
       '+gmailTokensEncrypted +apiKeys.openaiApiKeyEncrypted +apiKeys.googleClientSecretEncrypted +apiKeys.n8nWebhookSecretEncrypted'
     );
-    const connected = Boolean(user.gmailConnected && readUserTokens(user));
+    const keys = user ? user.getDecryptedApiKeys() : null;
+    const isConfigured = Boolean(keys?.googleClientId && keys?.googleClientSecret);
+    const connected = Boolean(user?.gmailConnected && readUserTokens(user));
     res.json({
       success: true,
       connected,
-      gmailEmail: connected ? user.gmailEmail : '',
-      lastGmailSync: user.lastGmailSync || null,
+      isConfigured,
+      userEmail: user?.email || '',
+      gmailEmail: connected ? (user.gmailEmail || user.email) : '',
+      lastGmailSync: user?.lastGmailSync || null,
+      googleClientId: keys?.googleClientId || '',
+      googleRedirectUri: keys?.googleRedirectUri || (process.env.GOOGLE_REDIRECT_URI || 'https://jobdashboard-lina.duckdns.org/api/gmail/callback'),
+      autoSyncGmail: user?.settings?.autoSyncGmail ?? false,
+      syncFrequencyHours: user?.settings?.syncFrequencyHours ?? 6,
     });
   } catch (err) { next(err); }
 };
