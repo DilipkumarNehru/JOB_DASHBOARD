@@ -28,10 +28,17 @@ export const syncUserApiKeysFromEnv = async () => {
         changed = true;
       }
 
-      if (!hasGoogle && process.env.GOOGLE_CLIENT_ID) {
-        updates.googleClientId = process.env.GOOGLE_CLIENT_ID;
-        updates.googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
-        updates.googleRedirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/gmail/callback';
+      if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+        const currentGoogleSecret = user.apiKeys?.googleClientSecretEncrypted ? user.getDecryptedApiKeys()?.googleClientSecret : '';
+        if (!hasGoogle || user.apiKeys?.googleClientId !== process.env.GOOGLE_CLIENT_ID || currentGoogleSecret !== process.env.GOOGLE_CLIENT_SECRET) {
+          updates.googleClientId = process.env.GOOGLE_CLIENT_ID;
+          updates.googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+          updates.googleRedirectUri = process.env.GOOGLE_REDIRECT_URI || 'https://jobdashboard-lina.duckdns.org/api/gmail/callback';
+          changed = true;
+        }
+      }
+      if (process.env.GOOGLE_REDIRECT_URI && (!user.apiKeys.googleRedirectUri || user.apiKeys.googleRedirectUri === 'http://localhost:5000/api/gmail/callback')) {
+        updates.googleRedirectUri = process.env.GOOGLE_REDIRECT_URI;
         changed = true;
       }
 
