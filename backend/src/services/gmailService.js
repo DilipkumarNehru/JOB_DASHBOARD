@@ -5,7 +5,7 @@ import {
   createOAuth2Client, getMessageDetail, listInboxMessages,
   parseGmailMessage, refreshAccessToken
 } from '../integrations/gmail/gmailClient.js';
-import { classifyEmail } from './emailClassifierService.js';
+import { classifyEmail, algorithmicClassify } from './emailClassifierService.js';
 import { matchEmailToApplication } from './emailMatcherService.js';
 
 // ---------------------------------------------------------------------------
@@ -102,7 +102,7 @@ const SYNC_MANAGED_FIELDS = [
 ];
 
 // Concurrently fetch message details in batches to stay within Gmail API rate limits
-const CONCURRENCY = 5;
+const CONCURRENCY = 8;
 
 const processMessageBatch = async (client, metaBatch, user, gmailEmail) => {
   const results = await Promise.allSettled(
@@ -124,21 +124,62 @@ const processMessageBatch = async (client, metaBatch, user, gmailEmail) => {
     .filter(Boolean);
 };
 
-export const syncEmailsForUser = async (user, { maxResults = 20, maxPages = 1, query = '' } = {}) => {
+export const syncEmailsForUser = async (user, {
+  maxResults = 50,
+  maxPages = 2,
+  query = '',
+  folder = 'ALL',
+  fetchOlder = false,
+  syncAll = false
+} = {}) => {
   const client = await buildAuthedClient(user);
+
+  let labelIds = null;
+  let includeSpamTrash = true;
+  const upperFolder = String(folder || 'ALL').toUpperCase();
+
+  if (upperFolder === 'PRIMARY') {
+    labelIds = ['CATEGORY_PERSONAL'];
+    includeSpamTrash = false;
+  } else if (upperFolder === 'PROMOTIONS') {
+    labelIds = ['CATEGORY_PROMOTIONS'];
+    includeSpamTrash = false;
+  } else if (upperFolder === 'SOCIAL') {
+    labelIds = ['CATEGORY_SOCIAL'];
+    includeSpamTrash = false;
+  } else if (upperFolder === 'UPDATES') {
+    labelIds = ['CATEGORY_UPDATES'];
+    includeSpamTrash = false;
+  } else if (upperFolder === 'SPAM') {
+    labelIds = ['SPAM'];
+    includeSpamTrash = true;
+  } else if (upperFolder === 'INBOX') {
+    labelIds = ['INBOX'];
+    includeSpamTrash = false;
+  } else {
+    // 'ALL' - Fetch across all folders including Spam and archived emails
+    labelIds = null;
+    includeSpamTrash = true;
+  }
+
+  // If syncAll is requested, use max batch size (100 is max allowed by Gmail API)
+  const effectiveMaxResults = syncAll ? 100 : Math.min(parseInt(maxResults) || 50, 100);
+  const effectiveMaxPages = syncAll ? Math.min(parseInt(maxPages) || 30, 60) : Math.min(parseInt(maxPages) || 2, 10);
 
   let totalFetched = 0;
   let newEmails = 0;
   let updatedEmails = 0;
   let linked = 0;
-  let pageToken = '';
+  let pageToken = fetchOlder ? (user.gmailSyncNextPageToken || '') : '';
   let totalInGmail = 0;
 
-  for (let page = 0; page < maxPages; page++) {
+  for (let page = 0; page < effectiveMaxPages; page++) {
     const { messages, nextPageToken, resultSizeEstimate } = await listInboxMessages(client, {
       query: query || '',
-      maxResults,
+      maxResults: effectiveMaxResults,
       pageToken,
+      labelIds,
+      includeSpamTrash,
     });
     if (page === 0) totalInGmail = resultSizeEstimate;
 
@@ -195,31 +236,31 @@ export const syncEmailsForUser = async (user, { maxResults = 20, maxPages = 1, q
       }
     }
 
-    // Process new emails in concurrent chunks of 4 with safe fallback
-    const CLASSIFY_CONCURRENCY = 4;
+    // Process new emails fast using algorithmic classification (<1ms, no OpenAI rate limit)
+    const CLASSIFY_CONCURRENCY = 15;
     for (let c = 0; c < toInsert.length; c += CLASSIFY_CONCURRENCY) {
       const chunk = toInsert.slice(c, c + CLASSIFY_CONCURRENCY);
       await Promise.allSettled(chunk.map(async (parsed) => {
         try {
-          const classification = await classifyEmail({
+          const classification = algorithmicClassify({
             subject: parsed.subject,
             bodySnippet: parsed.bodySnippet,
             sender: parsed.sender,
-          }, user).catch(() => ({ category: 'OTHER', confidence: 0.5, companyName: '', jobRole: '', classificationReason: 'Fallback' }));
+          });
 
           const email = await Email.create({
             userId: user._id,
             ...parsed,
             category: classification.category || 'OTHER',
-            aiConfidence: classification.confidence || 0,
+            aiConfidence: classification.confidence || 0.8,
             companyName: classification.companyName || '',
             jobRole: classification.jobRole || '',
-            classificationReason: classification.classificationReason || '',
+            classificationReason: classification.classificationReason || 'Pattern match',
             status: (classification.confidence || 0) >= 0.7 ? 'unlinked' : 'needs_review',
           });
           newEmails++;
 
-          // Link to job application if possible (non-blocking)
+          // Link to job application if possible (asynchronous background)
           matchEmailToApplication(email).then(match => {
             if (match && match.linked) linked++;
           }).catch(() => {});
@@ -233,5 +274,20 @@ export const syncEmailsForUser = async (user, { maxResults = 20, maxPages = 1, q
     if (!pageToken) break;
   }
 
-  return { totalFetched, newEmails, updatedEmails, linked, totalInGmail, nextPageToken: pageToken };
+  // Save the latest nextPageToken for fetching older emails subsequently
+  if (user && pageToken !== undefined) {
+    user.gmailSyncNextPageToken = pageToken || '';
+    user.lastGmailSync = new Date();
+    await user.save().catch((err) => logger.warn('Could not save user sync page token: ' + err.message));
+  }
+
+  return {
+    totalFetched,
+    newEmails,
+    updatedEmails,
+    linked,
+    totalInGmail,
+    nextPageToken: pageToken || '',
+    hasMoreOlder: Boolean(pageToken),
+  };
 };

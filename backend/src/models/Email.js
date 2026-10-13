@@ -81,5 +81,7 @@ const EmailSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 EmailSchema.index({ userId: 1, gmailMessageId: 1 }, { unique: true });
+EmailSchema.index({ userId: 1, labels: 1 });
+EmailSchema.index({ userId: 1, receivedAt: -1 });
 
 export default mongoose.model('Email', EmailSchema);

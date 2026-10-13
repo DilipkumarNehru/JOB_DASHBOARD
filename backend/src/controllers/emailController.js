@@ -1,11 +1,37 @@
+import mongoose from 'mongoose';
 import Email from '../models/Email.js';
 import Application from '../models/Application.js';
 import { matchEmailToApplication, relinkAllUnlinkedEmails } from '../services/emailMatcherService.js';
 
 export const getEmails = async (req, res, next) => {
   try {
-    const { category, status, company, sender, search, unread, page = 1, limit = 30 } = req.query;
+    const { folder, category, status, company, sender, search, unread, page = 1, limit = 30 } = req.query;
     const filter = { userId: req.user.id };
+
+    if (folder) {
+      const f = String(folder).toLowerCase();
+      if (f === 'primary') {
+        filter.$and = [
+          { labels: { $ne: 'SPAM' } },
+          { labels: { $nin: ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_UPDATES'] } }
+        ];
+      } else if (f === 'updates') {
+        filter.labels = 'CATEGORY_UPDATES';
+      } else if (f === 'promotions') {
+        filter.$or = [{ labels: 'CATEGORY_PROMOTIONS' }, { category: 'PROMOTION' }];
+      } else if (f === 'social') {
+        filter.$or = [{ labels: 'CATEGORY_SOCIAL' }, { category: 'SOCIAL' }];
+      } else if (f === 'spam') {
+        filter.labels = 'SPAM';
+      } else if (f === 'starred') {
+        filter.labels = 'STARRED';
+      }
+      // 'all' includes all messages
+    } else if (!search) {
+      // Default view excludes SPAM
+      filter.labels = { $ne: 'SPAM' };
+    }
+
     if (category) filter.category = category;
     if (status) filter.status = status;
     if (company) filter.companyName = new RegExp(company, 'i');
@@ -15,13 +41,66 @@ export const getEmails = async (req, res, next) => {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       filter.$or = [{ sender: rx }, { senderEmail: rx }, { recipient: rx }, { subject: rx }, { bodySnippet: rx }, { bodyFull: rx }];
     }
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const maxLimit = Math.min(parseInt(limit) || 30, 100);
-    const [emails, total] = await Promise.all([
+
+    const userObjId = new mongoose.Types.ObjectId(req.user.id);
+
+    const [emails, total, folderAgg] = await Promise.all([
       Email.find(filter).populate('applicationId', 'company role status').sort({ receivedAt: -1 }).skip(skip).limit(maxLimit),
-      Email.countDocuments(filter)
+      Email.countDocuments(filter),
+      Email.aggregate([
+        { $match: { userId: userObjId } },
+        {
+          $group: {
+            _id: null,
+            all: { $sum: 1 },
+            spam: { $sum: { $cond: [{ $in: ['SPAM', '$labels'] }, 1, 0] } },
+            updates: { $sum: { $cond: [{ $in: ['CATEGORY_UPDATES', '$labels'] }, 1, 0] } },
+            promotions: { $sum: { $cond: [{ $or: [{ $in: ['CATEGORY_PROMOTIONS', '$labels'] }, { $eq: ['$category', 'PROMOTION'] }] }, 1, 0] } },
+            social: { $sum: { $cond: [{ $or: [{ $in: ['CATEGORY_SOCIAL', '$labels'] }, { $eq: ['$category', 'SOCIAL'] }] }, 1, 0] } },
+            starred: { $sum: { $cond: [{ $in: ['STARRED', '$labels'] }, 1, 0] } },
+            unread: { $sum: { $cond: [{ $eq: ['$isRead', false] }, 1, 0] } },
+            primary: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $not: [{ $in: ['SPAM', '$labels'] }] },
+                      { $not: [{ $in: ['CATEGORY_UPDATES', '$labels'] }] },
+                      { $not: [{ $in: ['CATEGORY_PROMOTIONS', '$labels'] }] },
+                      { $not: [{ $in: ['CATEGORY_SOCIAL', '$labels'] }] }
+                    ]
+                  },
+                  1,
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ])
     ]);
-    res.json({ success: true, count: emails.length, total, emails });
+
+    const folderStats = folderAgg && folderAgg[0] ? folderAgg[0] : {
+      all: total,
+      primary: total,
+      updates: 0,
+      promotions: 0,
+      social: 0,
+      spam: 0,
+      starred: 0,
+      unread: 0,
+    };
+
+    res.json({
+      success: true,
+      count: emails.length,
+      total,
+      folderCounts: folderStats,
+      emails
+    });
   } catch (err) { next(err); }
 };
 
@@ -35,6 +114,22 @@ export const markEmailRead = async (req, res, next) => {
     ).populate('applicationId');
     if (!email) return res.status(404).json({ success: false, message: 'Email not found' });
     res.json({ success: true, email });
+  } catch (err) { next(err); }
+};
+
+export const toggleEmailStar = async (req, res, next) => {
+  try {
+    const email = await Email.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!email) return res.status(404).json({ success: false, message: 'Email not found' });
+
+    const isStarred = (email.labels || []).includes('STARRED');
+    if (isStarred) {
+      email.labels = email.labels.filter(l => l !== 'STARRED');
+    } else {
+      email.labels = [...(email.labels || []), 'STARRED'];
+    }
+    await email.save();
+    res.json({ success: true, email, isStarred: !isStarred });
   } catch (err) { next(err); }
 };
 

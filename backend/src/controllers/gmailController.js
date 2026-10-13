@@ -90,6 +90,7 @@ export const getGmailStatus = async (req, res, next) => {
       googleRedirectUri: keys?.googleRedirectUri || (process.env.GOOGLE_REDIRECT_URI || 'https://jobdashboard-lina.duckdns.org/api/gmail/callback'),
       autoSyncGmail: user?.settings?.autoSyncGmail ?? false,
       syncFrequencyHours: user?.settings?.syncFrequencyHours ?? 6,
+      hasMoreOlder: Boolean(user?.gmailSyncNextPageToken),
     });
   } catch (err) { next(err); }
 };
@@ -111,21 +112,29 @@ export const syncGmail = async (req, res, next) => {
       });
     }
 
-    const { maxResults, maxPages, query } = req.body || {};
+    const { maxResults, maxPages, query, folder, fetchOlder, syncAll } = req.body || {};
     const stats = await syncEmailsForUser(user, {
-      maxResults: Math.min(parseInt(maxResults) || 25, 100),
-      maxPages: Math.min(parseInt(maxPages) || 1, 5),
+      maxResults: syncAll ? 100 : Math.min(parseInt(maxResults) || 50, 100),
+      maxPages: syncAll ? Math.min(parseInt(maxPages) || 30, 60) : Math.min(parseInt(maxPages) || 3, 10),
       query: String(query || '').trim(),
+      folder: String(folder || 'ALL').trim(),
+      fetchOlder: Boolean(fetchOlder),
+      syncAll: Boolean(syncAll),
     });
 
     user.lastGmailSync = new Date();
     await user.save();
 
-    const parts = [`Synced ${stats.totalFetched} emails`];
+    let prefix = 'Synced';
+    if (syncAll) prefix = `Full Mailbox Historical Sync completed: fetched ${stats.totalFetched} emails`;
+    else if (fetchOlder) prefix = `Fetched ${stats.totalFetched} older emails`;
+    else prefix = `Synced ${stats.totalFetched} emails`;
+
+    const parts = [prefix];
     if (stats.newEmails > 0) parts.push(`${stats.newEmails} new`);
     if (stats.updatedEmails > 0) parts.push(`${stats.updatedEmails} updated`);
     if (stats.linked > 0) parts.push(`${stats.linked} auto-linked`);
-    if (stats.totalFetched === 0 || (stats.newEmails === 0 && stats.updatedEmails === 0)) parts.push('no changes');
+    if (stats.totalFetched === 0 || (stats.newEmails === 0 && stats.updatedEmails === 0)) parts.push('up to date');
 
     res.json({
       success: true,
@@ -136,6 +145,7 @@ export const syncGmail = async (req, res, next) => {
       linked: stats.linked,
       totalInGmail: stats.totalInGmail,
       nextPageToken: stats.nextPageToken,
+      hasMoreOlder: stats.hasMoreOlder,
     });
   } catch (err) {
     if (err && err.code === 'GOOGLE_NOT_CONFIGURED') {

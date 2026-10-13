@@ -1,7 +1,7 @@
 import express from 'express';
 import {
   getEmails, getEmail, getEmailCategories, updateEmailCategory, markEmailRead,
-  linkEmailToApplication, syncEmails, relinkEmails, deleteAllEmails
+  linkEmailToApplication, syncEmails, relinkEmails, deleteAllEmails, toggleEmailStar
 } from '../controllers/emailController.js';
 import { protect } from '../middleware/auth.js';
 const router = express.Router();
@@ -13,6 +13,7 @@ router.post('/relink', relinkEmails);
 router.delete('/delete-all', deleteAllEmails);
 router.get('/:id', getEmail);
 router.put('/:id/read', markEmailRead);
+router.put('/:id/star', toggleEmailStar);
 router.put('/:id/category', updateEmailCategory);
 router.post('/:id/link', linkEmailToApplication);
 export default router;

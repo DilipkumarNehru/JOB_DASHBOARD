@@ -19,16 +19,37 @@ const KEYWORDS = {
   JOB_APPLICATION: ['applied','application received','thank you for applying','application confirmed']
 };
 
-const algorithmicClassify = (subject, body) => {
+export const algorithmicClassify = (subjectOrObj, bodySnippetParam) => {
+  let subject = '';
+  let body = '';
+  if (typeof subjectOrObj === 'object' && subjectOrObj !== null) {
+    subject = subjectOrObj.subject || '';
+    body = subjectOrObj.bodySnippet || subjectOrObj.body || '';
+  } else {
+    subject = subjectOrObj || '';
+    body = bodySnippetParam || '';
+  }
   const text = (subject + ' ' + body).toLowerCase();
   for (const [category, keywords] of Object.entries(KEYWORDS)) {
     for (const kw of keywords) {
       if (text.includes(kw)) {
-        return { category, confidence: 0.72 };
+        return {
+          category,
+          confidence: 0.8,
+          companyName: '',
+          jobRole: '',
+          classificationReason: `Pattern matched "${kw}"`
+        };
       }
     }
   }
-  return { category: 'OTHER', confidence: 0.5 };
+  return {
+    category: 'OTHER',
+    confidence: 0.5,
+    companyName: '',
+    jobRole: '',
+    classificationReason: 'General email'
+  };
 };
 
 export const classifyEmail = async (email, user = null) => {

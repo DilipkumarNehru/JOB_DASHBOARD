@@ -85,13 +85,27 @@ export const refreshAccessToken = async (client) => {
 // ---------------------------------------------------------------------------
 
 /**
- * List inbox messages with Gmail-style pagination.
+ * List inbox and mailbox messages with Gmail-style pagination.
+ * Supports querying specific folders (PRIMARY, UPDATES, PROMOTIONS, SOCIAL, SPAM)
+ * or all mail with includeSpamTrash: true.
  * Returns { messages, nextPageToken, resultSizeEstimate }.
  */
-export const listInboxMessages = async (client, { query = '', maxResults = 50, pageToken = '', labelIds = ['INBOX'] } = {}) => {
+export const listInboxMessages = async (client, {
+  query = '',
+  maxResults = 50,
+  pageToken = '',
+  labelIds = null,
+  includeSpamTrash = true,
+} = {}) => {
   const gmail = google.gmail({ version: 'v1', auth: client });
-  const params = { userId: 'me', maxResults, labelIds, q: query };
+  const params = { userId: 'me', maxResults };
+  if (labelIds && Array.isArray(labelIds) && labelIds.length > 0) {
+    params.labelIds = labelIds;
+  }
+  if (query) params.q = query;
   if (pageToken) params.pageToken = pageToken;
+  if (includeSpamTrash) params.includeSpamTrash = true;
+
   const { data } = await gmail.users.messages.list(params);
   return {
     messages: data.messages || [],

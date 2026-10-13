@@ -65,6 +65,7 @@ const UserSchema = new mongoose.Schema({
   gmailTokensEncrypted: { type: String, default: '', select: false },
   gmailOAuthState: { type: String, default: '' },
   lastGmailSync: { type: Date },
+  gmailSyncNextPageToken: { type: String, default: '' },
   resetPasswordToken: { type: String },
   resetPasswordExpire: { type: Date },
   settings: {
