@@ -7,12 +7,14 @@ import {
   Filter, RefreshCw, Trash2, Edit3, AlertTriangle, CheckCircle2,
   XCircle, Smartphone, Monitor, Globe, FileText, Sparkles, Copy,
   Check, X, ChevronLeft, ChevronRight, Crown, Laptop, Info,
-  ExternalLink, Calendar, Building2, Briefcase, Mail, MapPin, DollarSign
+  ExternalLink, Calendar, Building2, Briefcase, Mail, MapPin, DollarSign,
+  Video, PhoneCall
 } from 'lucide-react';
 import { adminService } from '../services';
 import api from '../services/api.js';
 import { formatDate } from '../utils/format.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useVideoCall } from '../context/VideoCallContext.jsx';
 
 /* ─── Admin Tab Error Boundary ───────────────────────────────────── */
 class AdminTabErrorBoundary extends Component {
@@ -1574,6 +1576,7 @@ function AdminResumePreviewModal({ resumeId, resumeData, onClose }) {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const { inviteUser } = useVideoCall();
   const [activeTab, setActiveTab] = useState('monitor'); // 'monitor' | 'users' | 'logs' | 'jobs'
 
   // Stats state
@@ -2159,17 +2162,26 @@ export default function AdminDashboard() {
       {/* ─── TAB 1: Live User Monitor ─────────────────────────────────── */}
       {activeTab === 'monitor' && (
         <div className="space-y-5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-black text-slate-900">Active Live Sessions</h2>
               <p className="text-xs text-slate-500">
                 Real-time active users currently connected to the Job Dashboard
               </p>
             </div>
-            <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-              Monitoring active WebSocket / heartbeat sessions
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => navigate('/video-call?room=active-users-room')}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/30 hover:from-indigo-700 hover:to-violet-700 transition-all hover:scale-[1.02]"
+              >
+                <Video className="h-4 w-4" />
+                <span>Start Video Call with Active Users</span>
+              </button>
+              <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                Monitoring active sessions
+              </span>
+            </div>
           </div>
 
           {liveSessions.length === 0 ? (
@@ -2246,14 +2258,30 @@ export default function AdminDashboard() {
                     <span className="text-[11px] text-slate-400">
                       Heartbeat: {formatTimeAgo(s.lastActiveAt)}
                     </span>
-                    <button
-                      onClick={() => handleForceLogout(s.user?._id || s.user?.id, s.name)}
-                      className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
-                      title="Terminate this session immediately"
-                    >
-                      <LogOut className="h-3 w-3" />
-                      Force Logout
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          const targetUserId = s.user?._id || s.user?.id || s.userId;
+                          if (targetUserId) {
+                            inviteUser(targetUserId, 'active-users-room');
+                          }
+                          navigate('/video-call?room=active-users-room');
+                        }}
+                        className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors shadow-xs"
+                        title="Start video call with this user"
+                      >
+                        <Video className="h-3 w-3" />
+                        Video Call
+                      </button>
+                      <button
+                        onClick={() => handleForceLogout(s.user?._id || s.user?.id, s.name)}
+                        className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
+                        title="Terminate this session immediately"
+                      >
+                        <LogOut className="h-3 w-3" />
+                        Force Logout
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

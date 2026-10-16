@@ -28,7 +28,8 @@
     "natural": "^6.10.4",
     "openai": "^4.47.1",
     "pdf-parse": "^1.1.1",
-    "pdfkit": "^0.15.0"
+    "pdfkit": "^0.15.0",
+    "socket.io": "^4.8.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.2"

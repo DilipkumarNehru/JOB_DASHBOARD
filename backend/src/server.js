@@ -24,7 +24,10 @@ import gmailRoutes from './routes/gmailRoutes.js';
 import interviewRoutes from './routes/interviewRoutes.js';
 import n8nRoutes from './routes/n8nRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import http from 'http';
 import practiceRoutes from './routes/practiceRoutes.js';
+import callRoutes from './routes/callRoutes.js';
+import { initCallSocket } from './socket/callSocket.js';
 import { ensureAdminAccount } from './config/seedAdmin.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -81,6 +84,7 @@ app.use('/api/gmail', gmailRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/n8n', n8nRoutes);
 app.use('/api/practice', practiceRoutes);
+app.use('/api/calls', callRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -109,10 +113,14 @@ connectDB().then(async () => {
   } catch (err) {
     console.warn('[Cron] Could not start scheduled jobs:', err.message);
   }
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = http.createServer(app);
+  initCallSocket(server, process.env.FRONTEND_URL || 'http://localhost:5173');
+
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Job Dashboard API running at http://localhost:${PORT}`);
     console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
     console.log(`🛡️ Admin API: http://localhost:${PORT}/api/admin/stats`);
+    console.log(`📹 Video Calls & WebRTC Socket.IO signaling active on /socket.io`);
     console.log(`🌐 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:5173'}\n`);
   });
 });

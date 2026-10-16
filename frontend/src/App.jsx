@@ -26,6 +26,7 @@ import LandingPage from './pages/landing/LandingPage.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import Practice from './pages/Practice.jsx';
 import OnlineCompiler from './pages/OnlineCompiler.jsx';
+import VideoCall from './pages/VideoCall.jsx';
 
 const Protected = ({ children }) => {
   const { token, loading } = useAuth();
@@ -93,6 +94,7 @@ function App() {
         <Route path="emails/:id" element={<EmailDetails />} />
         <Route path="gmail" element={<GmailInbox />} />
         <Route path="interviews" element={<Interviews />} />
+        <Route path="video-call" element={<VideoCall />} />
         <Route path="practice" element={<Practice />} />
         <Route path="compiler" element={<OnlineCompiler />} />
         <Route path="follow-ups" element={<FollowUps />} />
