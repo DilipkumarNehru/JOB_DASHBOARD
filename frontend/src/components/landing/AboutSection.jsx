@@ -1,73 +1,82 @@
-import { Layers, Users, Globe, Shield } from 'lucide-react';
+import { Layers, ShieldCheck, Zap, Globe, Sparkles } from 'lucide-react';
 
 const PILLARS = [
   {
-    icon: Layers,
-    title: 'Centralized Platform',
+    icon: Zap,
+    title: 'Zero Latency & Live Discovery',
     description:
-      'One place for job discovery, resume management, application tracking, email organization, and analytics. No more switching between multiple tools.',
+      'Engineered with modern reactive state management and high-frequency career crawlers, ensuring you receive immediate notification of newly published vacancies.'
   },
   {
-    icon: Users,
-    title: 'Built for Job Seekers',
+    icon: ShieldCheck,
+    title: 'Bank-Grade Data Privacy',
     description:
-      'Designed from the ground up for individual job seekers who want to manage their search professionally without enterprise-level complexity.',
+      'Your resumes, personal portfolio data, and synced Gmail messages are encrypted. We never resell your applicant data or share your profile with third-party brokers.'
+  },
+  {
+    icon: Layers,
+    title: 'Unified Application Hub',
+    description:
+      'Seamlessly merges resume parsing, ATS scoring, interview preparation, online code execution, and email classification into one cohesive workspace.'
   },
   {
     icon: Globe,
-    title: 'Live Job Data',
+    title: 'Built for Global Tech Roles',
     description:
-      'Jobs are discovered from real company career pages and sources — not a static database. Your job pool stays current with the market.',
-  },
-  {
-    icon: Shield,
-    title: 'Privacy First',
-    description:
-      'Your resume, applications, and emails are stored securely and never shared. Only you have access to your job search workspace.',
-  },
+      'Tailored for modern software engineering, AI/ML, cloud, and product disciplines across both remote global setups and localized tech hubs.'
+  }
 ];
 
 export default function AboutSection() {
   return (
-    <section id="about" className="landing-section bg-white">
-      <div className="landing-container">
-        <div className="about-grid">
-          {/* Text column */}
-          <div className="about-text-col">
-            <div className="section-badge mb-4">About JOB DASHBOARD</div>
-            <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 leading-tight mb-5">
-              Simplifying the Modern{' '}
-              <span className="section-heading-accent">Job Search Process</span>
+    <section id="about" className="landing-section bg-slate-900 text-white py-24 relative overflow-hidden border-t border-slate-800">
+      <div className="landing-container relative z-10">
+        <div className="grid lg:grid-cols-12 gap-12 items-center max-w-6xl mx-auto">
+          {/* Left: Vision */}
+          <div className="lg:col-span-6 space-y-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/20 text-brand-300 text-xs font-semibold border border-brand-500/30">
+              <Sparkles className="h-3.5 w-3.5 text-brand-400" />
+              <span>Our Vision</span>
+            </div>
+
+            <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white leading-tight">
+              Democratizing the <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400">Engineering Job Search</span>
             </h2>
-            <p className="text-slate-600 leading-relaxed mb-4">
-              JOB DASHBOARD is designed to simplify the modern job-search process by
-              bringing job discovery, resume analysis, application tracking, email
-              management, and follow-up management into one platform.
+
+            <p className="text-slate-300 text-base leading-relaxed">
+              Today's hiring process is heavily automated by enterprise Applicant Tracking Systems (ATS) and algorithmic filters. Most qualified engineers are rejected before a human ever reads their resume.
             </p>
-            <p className="text-slate-600 leading-relaxed mb-4">
-              The goal is to reduce the effort required to manage multiple job
-              applications and provide users with a centralized view of their
-              job-search journey — from discovering an opportunity to receiving an offer.
+
+            <p className="text-slate-300 text-base leading-relaxed">
+              <strong>JOB DASHBOARD</strong> levels the playing field. By equipping candidates with the same intelligence recruiters use — ATS score modeling, keyword gap identification, and automated organization — candidates regain control of their career outcomes.
             </p>
-            <p className="text-slate-600 leading-relaxed">
-              Whether you are actively searching, passively exploring, or managing
-              multiple application pipelines simultaneously, JOB DASHBOARD gives you
-              the structure and visibility you need.
-            </p>
+
+            <div className="pt-2 flex items-center gap-4 text-xs font-semibold text-slate-400">
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <ShieldCheck className="h-4 w-4" /> 100% Free Forever Tier
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1.5 text-blue-400">
+                <Globe className="h-4 w-4" /> Global Opportunities
+              </span>
+            </div>
           </div>
 
-          {/* Cards column */}
-          <div className="about-cards-col">
+          {/* Right: Pillars Grid */}
+          <div className="lg:col-span-6 grid sm:grid-cols-2 gap-4">
             {PILLARS.map((p) => {
               const Icon = p.icon;
               return (
-                <div key={p.title} className="about-card">
-                  <div className="about-card-icon">
-                    <Icon className="h-5 w-5 text-brand-600" />
+                <div
+                  key={p.title}
+                  className="bg-slate-800/80 p-6 rounded-2xl border border-slate-700/80 hover:border-brand-500/40 hover:bg-slate-800 transition-all duration-300 flex flex-col justify-between group shadow-lg"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-brand-600/20 text-brand-400 flex items-center justify-center border border-brand-500/30 mb-4 group-hover:scale-105 transition-transform">
+                    <Icon className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900 mb-1">{p.title}</h3>
-                    <p className="text-sm text-slate-500 leading-relaxed">{p.description}</p>
+                    <h3 className="text-sm font-bold text-white mb-2">{p.title}</h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">{p.description}</p>
                   </div>
                 </div>
               );
