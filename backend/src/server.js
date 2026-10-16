@@ -128,7 +128,24 @@ connectDB().then(async () => {
     console.warn('[Cron] Could not start scheduled jobs:', err.message);
   }
   const server = http.createServer(app);
-  initCallSocket(server, process.env.FRONTEND_URL || 'http://localhost:5173');
+  const io = initCallSocket(server, process.env.FRONTEND_URL || 'http://localhost:5173');
+
+  // Seamlessly support both /socket.io and /api/socket.io:
+  // When running behind reverse proxies (e.g. Nginx on live domain) where only /api is proxied to Node,
+  // rewriting /api/socket.io -> /socket.io and passing to io.engine handles it before Express!
+  server.prependListener('request', (req, res) => {
+    if (req.url && req.url.startsWith('/api/socket.io')) {
+      req.url = req.url.replace('/api/socket.io', '/socket.io');
+      io.engine.handleRequest(req, res);
+    }
+  });
+
+  server.prependListener('upgrade', (req, socket, head) => {
+    if (req.url && req.url.startsWith('/api/socket.io')) {
+      req.url = req.url.replace('/api/socket.io', '/socket.io');
+      io.engine.handleUpgrade(req, socket, head);
+    }
+  });
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Job Dashboard API running at http://localhost:${PORT}`);

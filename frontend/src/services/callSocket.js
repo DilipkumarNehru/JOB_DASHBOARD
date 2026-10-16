@@ -31,13 +31,33 @@ export function getSocketServerUrl() {
   return 'http://localhost:5000';
 }
 
+// Dynamically determine the socket path
+export function getSocketPath() {
+  if (import.meta.env.VITE_SOCKET_PATH) {
+    return import.meta.env.VITE_SOCKET_PATH;
+  }
+  if (typeof window !== 'undefined') {
+    const isLocal =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1';
+    // On live deployments, Nginx routes /api/* to Node.js backend.
+    // Using /api/socket.io routes directly through Nginx's existing /api/ proxy,
+    // avoiding the issue where Nginx serves index.html for /socket.io!
+    if (!isLocal) {
+      return '/api/socket.io';
+    }
+  }
+  return '/socket.io';
+}
+
 export function getCallSocket() {
   if (!socket) {
     const serverUrl = getSocketServerUrl();
-    console.log('[CallSocket] Connecting to server URL:', serverUrl);
+    const socketPath = getSocketPath();
+    console.log('[CallSocket] Connecting to server URL:', serverUrl, 'path:', socketPath);
 
     socket = io(serverUrl, {
-      path: '/socket.io',
+      path: socketPath,
       transports: ['polling', 'websocket'],
       upgrade: true,
       autoConnect: false,
