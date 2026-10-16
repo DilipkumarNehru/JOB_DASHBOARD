@@ -38,6 +38,14 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Bypass Express completely for Socket.IO requests so Express does not parse body or send 404
+app.use((req, res, next) => {
+  if (req.url && (req.url.startsWith('/socket.io') || req.url.startsWith('/api/socket.io'))) {
+    return;
+  }
+  next();
+});
+
 // Security & logging middleware
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(morgan('dev'));
@@ -132,18 +140,16 @@ connectDB().then(async () => {
 
   // Seamlessly support both /socket.io and /api/socket.io:
   // When running behind reverse proxies (e.g. Nginx on live domain) where only /api is proxied to Node,
-  // rewriting /api/socket.io -> /socket.io and passing to io.engine handles it before Express!
+  // rewriting /api/socket.io -> /socket.io allows Socket.IO to receive requests without any proxy changes!
   server.prependListener('request', (req, res) => {
     if (req.url && req.url.startsWith('/api/socket.io')) {
       req.url = req.url.replace('/api/socket.io', '/socket.io');
-      io.engine.handleRequest(req, res);
     }
   });
 
   server.prependListener('upgrade', (req, socket, head) => {
     if (req.url && req.url.startsWith('/api/socket.io')) {
       req.url = req.url.replace('/api/socket.io', '/socket.io');
-      io.engine.handleUpgrade(req, socket, head);
     }
   });
 
