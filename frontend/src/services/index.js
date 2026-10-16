@@ -144,14 +144,11 @@ export const adminService = {
   forceLogout: (id) => api.post(`/admin/users/${id}/force-logout`),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getLogs: (params) => api.get('/admin/logs', { params }),
-<<<<<<< HEAD
   getActivity: (params) => api.get('/admin/activity', { params }),
   getApplications: (params) => api.get('/admin/applications', { params }),
   getResumes: (params) => api.get('/admin/resumes', { params }),
-=======
   getJobs: (params) => api.get('/admin/jobs', { params }),
   deleteJob: (id) => api.delete(`/admin/jobs/${id}`),
->>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
 };
 
 
