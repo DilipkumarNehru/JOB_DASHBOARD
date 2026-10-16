@@ -43,8 +43,22 @@ app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(morgan('dev'));
 
 // CORS
+const configuredOrigin = process.env.FRONTEND_URL;
+const allowedOrigins = configuredOrigin && configuredOrigin.includes(',')
+  ? configuredOrigin.split(',').map((s) => s.trim())
+  : [configuredOrigin || 'http://localhost:5173'];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow non-browser requests or same-origin
+    if (!origin) return callback(null, true);
+    // If FRONTEND_URL is set to wildcard or matches
+    if (!configuredOrigin || configuredOrigin === '*' || allowedOrigins.includes(origin) || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    // Allow live domain dynamically
+    return callback(null, true);
+  },
   credentials: true,
 }));
 

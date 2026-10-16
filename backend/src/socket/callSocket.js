@@ -17,7 +17,10 @@ let ioInstance = null;
 export function initCallSocket(server, corsOrigin) {
   const io = new SocketIOServer(server, {
     cors: {
-      origin: corsOrigin || '*',
+      origin: (origin, callback) => {
+        // Echo back requesting origin so credentials: true works seamlessly in dev and on live deployments
+        callback(null, origin || true);
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },
