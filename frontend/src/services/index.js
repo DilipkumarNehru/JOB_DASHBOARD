@@ -160,3 +160,9 @@ export const practiceService = {
   executeCode: (data) => api.post('/practice/execute', data, { timeout: 35000 }),
   getStats: () => api.get('/practice/stats'),
 };
+
+export const callService = {
+  getRooms: () => api.get('/calls/rooms'),
+  getActiveUsers: () => api.get('/calls/active-users'),
+  invite: (data) => api.post('/calls/invite', data),
+};

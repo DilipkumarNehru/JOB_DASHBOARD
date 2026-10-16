@@ -2,14 +2,14 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Briefcase, FileCheck, FileText, Mail, Building2,
   CalendarClock, BellRing, BarChart3, Bell, Plug, Settings, LogOut,
-  BriefcaseBusiness, X, Inbox, ShieldCheck, Code2, Terminal
+  BriefcaseBusiness, X, Inbox, ShieldCheck, Code2, Terminal, Video
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useNotifications } from '../../hooks/useNotifications.js';
 
 const ICONS = {
   LayoutDashboard, Briefcase, FileCheck, FileText, Mail, Building2,
-  CalendarClock, BellRing, BarChart3, Bell, Plug, Settings, Inbox, Code2, Terminal
+  CalendarClock, BellRing, BarChart3, Bell, Plug, Settings, Inbox, Code2, Terminal, Video
 };
 
 const NAV = [
@@ -23,6 +23,7 @@ const NAV = [
     { to: '/companies', label: 'Companies', icon: 'Building2' },
   ] },
   { section: 'Preparation & Coding', items: [
+    { to: '/video-call', label: 'Video Call', icon: 'Video', isLive: true },
     { to: '/compiler', label: 'Online Compiler', icon: 'Terminal' },
     { to: '/practice', label: 'Interview Practice', icon: 'Code2' },
     { to: '/interviews', label: 'Interviews', icon: 'CalendarClock' },
@@ -80,6 +81,12 @@ export const Sidebar = ({ open, onClose }) => {
                     >
                       {Icon && <Icon className="h-4.5 w-4.5 h-[18px] w-[18px]" />}
                       <span className="flex-1">{item.label}</span>
+                      {item.isLive && (
+                        <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 text-[9px] font-bold text-emerald-300 flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Live
+                        </span>
+                      )}
                       {item.to === '/notifications' && unread > 0 && (
                         <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{unread}</span>
                       )}

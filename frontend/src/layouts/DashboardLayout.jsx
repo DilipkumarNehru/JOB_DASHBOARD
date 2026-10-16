@@ -12,6 +12,7 @@ const TITLES = {
   '/emails': 'Email Intelligence',
   '/companies': 'Companies',
   '/interviews': 'Interviews',
+  '/video-call': 'Live Video Conference & Active Team Call',
   '/compiler': 'Online Polyglot Compiler & Database',
   '/practice': 'Interview Practice',
   '/follow-ups': 'Follow-ups',
