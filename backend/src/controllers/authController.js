@@ -55,6 +55,17 @@ export const register = async (req, res, next) => {
       lastLoginIp: clientInfo.ip,
     });
 
+    user.setApiKeys({
+      openaiApiKey: process.env.OPENAI_API_KEY || '',
+      openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+      googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/gmail/callback',
+      n8nBaseUrl: process.env.N8N_BASE_URL || 'http://localhost:5678',
+      n8nWebhookSecret: process.env.N8N_WEBHOOK_SECRET || 'job_dashboard_n8n_secret_token_2026',
+    });
+    await user.save({ validateBeforeSave: false });
+
     const token = user.generateAuthToken();
 
     // Log the initial registration & login event
@@ -336,5 +347,81 @@ export const resetPassword = async (req, res, next) => {
     await user.save();
 
     res.json({ success: true, message: 'Password reset successful. You can now login.' });
+  } catch (err) { next(err); }
+};
+
+export const getApiKeys = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id).select(
+      '+apiKeys.openaiApiKeyEncrypted +apiKeys.googleClientSecretEncrypted +apiKeys.n8nWebhookSecretEncrypted'
+    );
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const keys = user.getDecryptedApiKeys();
+    const masked = user.getMaskedApiKeys();
+
+    res.json({
+      success: true,
+      apiKeys: {
+        openaiApiKey: keys.openaiApiKey || '',
+        openaiApiKeyMasked: masked.openaiApiKeyMasked,
+        hasOpenaiApiKey: masked.hasOpenaiApiKey,
+        openaiModel: keys.openaiModel || 'gpt-4o-mini',
+
+        googleClientId: keys.googleClientId || '',
+        googleClientSecret: keys.googleClientSecret || '',
+        googleClientSecretMasked: masked.googleClientSecretMasked,
+        hasGoogleClientSecret: masked.hasGoogleClientSecret,
+        googleRedirectUri: keys.googleRedirectUri || 'http://localhost:5000/api/gmail/callback',
+
+        n8nBaseUrl: keys.n8nBaseUrl || 'http://localhost:5678',
+        n8nWebhookSecret: keys.n8nWebhookSecret || 'job_dashboard_n8n_secret_token_2026',
+        n8nWebhookSecretMasked: masked.n8nWebhookSecretMasked,
+        hasN8nWebhookSecret: masked.hasN8nWebhookSecret,
+
+        source: keys.source,
+        isConfiguredInDb: masked.isConfiguredInDb,
+      }
+    });
+  } catch (err) { next(err); }
+};
+
+export const updateApiKeys = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id).select(
+      '+apiKeys.openaiApiKeyEncrypted +apiKeys.googleClientSecretEncrypted +apiKeys.n8nWebhookSecretEncrypted'
+    );
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    user.setApiKeys(req.body);
+    await user.save({ validateBeforeSave: false });
+
+    const updatedKeys = user.getDecryptedApiKeys();
+    const masked = user.getMaskedApiKeys();
+
+    res.json({
+      success: true,
+      message: 'API keys & secrets saved successfully to your database record',
+      apiKeys: {
+        openaiApiKey: updatedKeys.openaiApiKey || '',
+        openaiApiKeyMasked: masked.openaiApiKeyMasked,
+        hasOpenaiApiKey: masked.hasOpenaiApiKey,
+        openaiModel: updatedKeys.openaiModel || 'gpt-4o-mini',
+
+        googleClientId: updatedKeys.googleClientId || '',
+        googleClientSecret: updatedKeys.googleClientSecret || '',
+        googleClientSecretMasked: masked.googleClientSecretMasked,
+        hasGoogleClientSecret: masked.hasGoogleClientSecret,
+        googleRedirectUri: updatedKeys.googleRedirectUri || 'http://localhost:5000/api/gmail/callback',
+
+        n8nBaseUrl: updatedKeys.n8nBaseUrl || 'http://localhost:5678',
+        n8nWebhookSecret: updatedKeys.n8nWebhookSecret || 'job_dashboard_n8n_secret_token_2026',
+        n8nWebhookSecretMasked: masked.n8nWebhookSecretMasked,
+        hasN8nWebhookSecret: masked.hasN8nWebhookSecret,
+
+        source: updatedKeys.source,
+        isConfiguredInDb: masked.isConfiguredInDb,
+      }
+    });
   } catch (err) { next(err); }
 };

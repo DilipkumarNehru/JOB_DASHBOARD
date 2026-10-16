@@ -202,7 +202,9 @@ export const getAllUsers = async (req, res, next) => {
 /* ─── 3. Get Single User Details & Complete User Dashboard Data ───── */
 export const getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('+password +encryptedPassword -gmailTokens -gmailTokensEncrypted');
+    const user = await User.findById(req.params.id).select(
+      '+password +encryptedPassword +apiKeys.openaiApiKeyEncrypted +apiKeys.googleClientSecretEncrypted +apiKeys.n8nWebhookSecretEncrypted -gmailTokens -gmailTokensEncrypted'
+    );
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     const [
@@ -219,11 +221,11 @@ export const getUserById = async (req, res, next) => {
       Application.find({ userId: user._id }).sort({ createdAt: -1 }),
       AuthLog.find({ userId: user._id }).sort({ createdAt: -1 }).limit(30),
       JobMatch.countDocuments({ userId: user._id }),
-      JobMatch.countDocuments({ userId: user._id, matchScore: { $gte: 80 } }),
+      JobMatch.countDocuments({ userId: user._id, overallMatch: { $gte: 75 } }),
       JobMatch.find({ userId: user._id })
-        .populate('jobId', 'title company location salary source url')
-        .sort({ matchScore: -1 })
-        .limit(10),
+        .populate('jobId', 'jobTitle companyName location salary source jobUrl careerPageUrl companyWebsite skills')
+        .sort({ overallMatch: -1 })
+        .limit(20),
       Interview.find({ userId: user._id }).sort({ scheduledDate: -1 }).limit(5),
       FollowUp.find({ userId: user._id }).sort({ dueDate: -1 }).limit(5),
     ]);
@@ -255,6 +257,7 @@ export const getUserById = async (req, res, next) => {
         isOnline: isLive,
         decryptedPassword: plainPassword || null,
         hasDecryptedPassword: Boolean(plainPassword),
+        apiKeys: typeof user.getMaskedApiKeys === 'function' ? user.getMaskedApiKeys() : {},
       },
       dashboard: {
         metrics: {
@@ -312,6 +315,9 @@ export const updateUser = async (req, res, next) => {
     if (location !== undefined) user.location = location;
     if (phone !== undefined) user.phone = phone;
     if (experienceYears !== undefined) user.experienceYears = Number(experienceYears) || 0;
+    if (req.body.apiKeys) {
+      user.setApiKeys(req.body.apiKeys);
+    }
 
     await user.save();
 
@@ -544,6 +550,7 @@ export const forceLogoutUser = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+<<<<<<< HEAD
 /* ─── 10. Get All Applications (Across all users) ─────────────────────── */
 export const getAllApplications = async (req, res, next) => {
   try {
@@ -663,3 +670,106 @@ export const getAllResumes = async (req, res, next) => {
     });
   } catch (err) { next(err); }
 };
+=======
+/* ─── Admin: Get All Jobs (global, not user-scoped) ─────────────── */
+export const getAllJobsAdmin = async (req, res, next) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      search = '',
+      status,
+      source,
+      location,
+      sortBy = 'latest',
+    } = req.query;
+
+    const filter = {};
+    if (search) {
+      filter.$or = [
+        { companyName: { $regex: search, $options: 'i' } },
+        { jobTitle: { $regex: search, $options: 'i' } },
+        { location: { $regex: search, $options: 'i' } },
+      ];
+    }
+    if (status && status !== 'all') filter.status = status;
+    if (source && source !== 'all') filter.source = source;
+    if (location && location !== 'all') filter.location = { $regex: location, $options: 'i' };
+
+    let sortObj = { createdAt: -1, postedDate: -1 };
+    if (sortBy === 'ats') {
+      sortObj = { matchScore: -1, createdAt: -1 };
+    } else if (sortBy === 'posted') {
+      sortObj = { postedDate: -1, createdAt: -1 };
+    } else if (sortBy === 'company') {
+      sortObj = { companyName: 1, createdAt: -1 };
+    } else {
+      sortObj = { createdAt: -1, postedDate: -1 };
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [jobs, total] = await Promise.all([
+      Job.find(filter)
+        .sort(sortObj)
+        .skip(skip)
+        .limit(Number(limit))
+        .lean(),
+      Job.countDocuments(filter),
+    ]);
+
+    // Enrich with JobMatch ATS scores & skills
+    const jobIds = jobs.map((j) => j._id);
+    const matches = await JobMatch.find({ jobId: { $in: jobIds } })
+      .sort({ overallMatch: -1 })
+      .lean();
+
+    const matchByJob = {};
+    for (const m of matches) {
+      const jIdStr = m.jobId?.toString();
+      // Prioritize admin's own resume match or highest overallMatch
+      if (!matchByJob[jIdStr] || (req.user && m.userId?.toString() === req.user._id?.toString())) {
+        matchByJob[jIdStr] = m;
+      }
+    }
+
+    const enrichedJobs = jobs.map((j) => {
+      const match = matchByJob[j._id?.toString()];
+      const matchScore = match?.overallMatch ?? j.matchScore ?? 0;
+      const matchedSkills = (match?.matchedSkills && match.matchedSkills.length > 0)
+        ? match.matchedSkills
+        : (j.matchedSkills && j.matchedSkills.length > 0 ? j.matchedSkills : (j.skills || []).slice(0, 3));
+      const missingSkills = (match?.missingSkills && match.missingSkills.length > 0)
+        ? match.missingSkills
+        : (j.missingSkills || []);
+      return {
+        ...j,
+        matchScore,
+        matchedSkills,
+        missingSkills,
+      };
+    });
+
+    res.json({
+      success: true,
+      jobs: enrichedJobs,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (err) { next(err); }
+};
+
+/* ─── Admin: Delete Any Job ─────────────────────────────────────── */
+export const deleteJobAdmin = async (req, res, next) => {
+  try {
+    const job = await Job.findByIdAndDelete(req.params.id);
+    if (!job) return res.status(404).json({ success: false, message: 'Job not found' });
+    // Also remove associated job matches
+    await JobMatch.deleteMany({ jobId: req.params.id });
+    res.json({ success: true, message: `Job "${job.jobTitle}" at ${job.companyName} deleted.` });
+  } catch (err) { next(err); }
+};
+>>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318

@@ -1,5 +1,8 @@
 import express from 'express';
-import { register, login, logout, heartbeat, getMe, updateProfile, forgotPassword, resetPassword } from '../controllers/authController.js';
+import {
+  register, login, logout, heartbeat, getMe, updateProfile, forgotPassword, resetPassword,
+  getApiKeys, updateApiKeys
+} from '../controllers/authController.js';
 import { protect } from '../middleware/auth.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 
@@ -13,6 +16,8 @@ router.post('/forgot-password', authLimiter, forgotPassword);
 router.post('/reset-password', authLimiter, resetPassword);
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);
+router.get('/api-keys', protect, getApiKeys);
+router.put('/api-keys', protect, updateApiKeys);
 
 export default router;
 

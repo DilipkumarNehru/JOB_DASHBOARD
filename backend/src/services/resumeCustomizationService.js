@@ -1,7 +1,7 @@
 import { generateCompletion } from '../integrations/openai/llmClient.js';
 import { logger } from '../utils/logger.js';
 
-export const customizeResume = async (originalProfile, job) => {
+export const customizeResume = async (originalProfile, job, user = null) => {
   const systemPrompt = `You are a professional resume writer.
 Your task is to tailor the candidate's resume for a specific job.
 CRITICAL RULES:
@@ -31,6 +31,7 @@ Return JSON:
 }`;
 
   const aiResult = await generateCompletion({
+    user,
     systemPrompt,
     userPrompt,
     temperature: 0.4,

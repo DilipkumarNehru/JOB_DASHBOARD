@@ -41,7 +41,7 @@ export const uploadResume = async (req, res, next) => {
     let rawText = '';
     let parsedProfile = {};
     try {
-      const parsed = await parseResume(req.file.path, ext);
+      const parsed = await parseResume(req.file.path, ext, req.user);
       rawText = parsed.rawText || '';
       parsedProfile = parsed.parsedProfile || {};
     } catch (parseErr) {
@@ -260,7 +260,7 @@ export const analyzeResume = async (req, res, next) => {
       const { parseResume } = await import('../services/resumeParserService.js');
       const { default: fsCheck } = await import('fs');
       if (resume.filePath && fsCheck.existsSync(resume.filePath)) {
-        const result = await parseResume(resume.filePath, resume.fileType || 'pdf');
+        const result = await parseResume(resume.filePath, resume.fileType || 'pdf', req.user);
         rawText = result.rawText || rawText;
         parsedProfile = result.parsedProfile;
       }
@@ -271,7 +271,7 @@ export const analyzeResume = async (req, res, next) => {
     // Fallback: re-parse from stored raw text if file not available
     if (!parsedProfile) {
       if (!rawText) return res.status(400).json({ success: false, message: 'No text available to re-analyze. Please re-upload the resume.' });
-      const result = await parseResumeFromText(rawText);
+      const result = await parseResumeFromText(rawText, req.user);
       parsedProfile = result.parsedProfile;
     }
 
@@ -297,7 +297,7 @@ export const customizeResumeForJob = async (req, res, next) => {
     const job = await Job.findById(jobId);
     if (!job) return res.status(404).json({ success: false, message: 'Job not found' });
 
-    const tailored = await customizeResume(resume.parsedProfile, job);
+    const tailored = await customizeResume(resume.parsedProfile, job, req.user);
     const pdfPath = await buildPdfFromCustomized(tailored);
 
     const { default: ResumeVersion } = await import('../models/ResumeVersion.js');
@@ -388,6 +388,7 @@ Profile summary:
 - Weak areas: ${missing.slice(0, 3).join('; ')}`;
 
       const result = await generateCompletion({
+        user: req.user,
         systemPrompt: 'You are an ATS resume expert. Return ONLY a valid JSON array of 5 recommendation strings.',
         userPrompt: prompt,
         temperature: 0.4,
@@ -746,11 +747,12 @@ export const serveResumeFile = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-const parseResumeFromText = async (rawText) => {
+const parseResumeFromText = async (rawText, user = null) => {
   const { generateCompletion } = await import('../integrations/openai/llmClient.js');
   const { ALL_SKILLS } = await import('../utils/skillDictionary.js');
 
   const aiResult = await generateCompletion({
+    user,
     systemPrompt: 'You are a resume parser. Extract structured data from the text. Return ONLY valid JSON with fields: name, email, phone, summary, skills[], experienceYears, companies[], jobTitles[], education[], certifications[], projects[], location, preferredRoles[], preferredLocations[]. Do not invent data.',
     userPrompt: rawText.slice(0, 6000),
     temperature: 0.1,

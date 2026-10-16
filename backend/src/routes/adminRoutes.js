@@ -9,8 +9,13 @@ import {
   getAuthLogs,
   getLiveUsers,
   forceLogoutUser,
+<<<<<<< HEAD
   getAllApplications,
   getAllResumes,
+=======
+  getAllJobsAdmin,
+  deleteJobAdmin,
+>>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
 } from '../controllers/adminController.js';
 import { protect, adminOnly } from '../middleware/auth.js';
 
@@ -38,5 +43,9 @@ router.put('/users/:id', updateUser);
 router.post('/users/:id/change-password', changeUserPassword);
 router.post('/users/:id/force-logout', forceLogoutUser);
 router.delete('/users/:id', deleteUser);
+
+// Jobs management
+router.get('/jobs', getAllJobsAdmin);
+router.delete('/jobs/:id', deleteJobAdmin);
 
 export default router;
