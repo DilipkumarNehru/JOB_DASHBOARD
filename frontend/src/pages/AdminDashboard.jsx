@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   Users, UserCheck, UserX, Shield, ShieldCheck, Key, Lock, Unlock,
@@ -6,9 +7,14 @@ import {
   Filter, RefreshCw, Trash2, Edit3, AlertTriangle, CheckCircle2,
   XCircle, Smartphone, Monitor, Globe, FileText, Sparkles, Copy,
   Check, X, ChevronLeft, ChevronRight, Crown, Laptop, Info,
+<<<<<<< HEAD
+  ExternalLink, Calendar, Building2, Briefcase, Mail, Download, Award
+=======
   ExternalLink, Calendar, Building2, Briefcase, Mail, MapPin, DollarSign
+>>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
 } from 'lucide-react';
 import { adminService } from '../services';
+import api from '../services/api.js';
 import { formatDate } from '../utils/format.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -335,7 +341,7 @@ function EditUserModal({ user, onClose, onUserUpdated }) {
 }
 
 /* ─── Modal: Detailed User Information & Dashboard Overview ──────── */
-function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpenEditUser, onUserUpdated }) {
+function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpenEditUser, onUserUpdated, onPreviewResume }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -883,16 +889,53 @@ function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpe
                               </div>
 
                               {r.atsScore !== null && r.atsScore !== undefined && (
-                                <div className="flex flex-col items-center rounded-xl bg-emerald-50 px-3 py-1 text-emerald-700 border border-emerald-200">
+                                <div className="flex flex-col items-center rounded-xl bg-emerald-50 px-3 py-1 text-emerald-700 border border-emerald-200 shrink-0">
                                   <span className="text-base font-black">{r.atsScore}</span>
                                   <span className="text-[9px] uppercase font-bold">Quality</span>
                                 </div>
                               )}
                             </div>
 
+                            {/* Resume Actions Bar */}
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => onPreviewResume?.(r._id, r)}
+                                  className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-bold transition-colors shadow-xs"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  <span>Preview Resume</span>
+                                </button>
+                                <a
+                                  href={`/api/resumes/${r._id}/file?token=${localStorage.getItem('jd_token') || ''}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                                  title="Open original uploaded file"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+                                  <span>Original</span>
+                                </a>
+                                <a
+                                  href={`/api/resumes/${r._id}/download.pdf?token=${localStorage.getItem('jd_token') || ''}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                                  title="Download ATS formatted PDF"
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  <span>PDF</span>
+                                </a>
+                              </div>
+                              <span className="text-[11px] text-slate-400">
+                                Size: {r.fileSize ? `${Math.round(r.fileSize / 1024)} KB` : '—'}
+                              </span>
+                            </div>
+
                             {/* Skills badges */}
                             {(prof.skills || []).length > 0 && (
-                              <div className="mt-3 flex flex-wrap gap-1 border-t border-slate-100 pt-2.5">
+                              <div className="mt-2.5 flex flex-wrap gap-1 border-t border-slate-100/70 pt-2">
                                 {prof.skills.slice(0, 10).map((skill, idx) => (
                                   <span key={idx} className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
                                     {skill}
@@ -997,10 +1040,19 @@ function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpe
                         <tbody className="divide-y divide-slate-100">
                           {applications.map((app) => (
                             <tr key={app._id} className="hover:bg-slate-50/60">
-                              <td className="px-4 py-2.5 font-bold text-slate-800">{app.jobTitle || 'Role'}</td>
-                              <td className="px-4 py-2.5 text-slate-600">{app.companyName || '—'}</td>
+                              <td className="px-4 py-2.5 font-bold text-slate-800">
+                                {app.role || app.jobTitle || app.jobId?.jobTitle || 'Role'}
+                              </td>
+                              <td className="px-4 py-2.5 text-slate-600 font-medium">
+                                {app.company || app.companyName || app.jobId?.companyName || '—'}
+                              </td>
                               <td className="px-4 py-2.5">
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700">
+                                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+                                  (app.status || '').toLowerCase().includes('offer') ? 'bg-emerald-100 text-emerald-800' :
+                                  (app.status || '').toLowerCase().includes('interview') ? 'bg-purple-100 text-purple-800' :
+                                  (app.status || '').toLowerCase().includes('reject') ? 'bg-rose-100 text-rose-800' :
+                                  'bg-blue-50 text-blue-700 border border-blue-200'
+                                }`}>
                                   {app.status || 'applied'}
                                 </span>
                               </td>
@@ -1096,8 +1148,403 @@ function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpe
   );
 }
 
+/* ─── Modal: Admin Resume Preview ────────────────────────────────── */
+function AdminResumePreviewModal({ resumeId, resumeData, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [resume, setResume] = useState(resumeData || null);
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [atsData, setAtsData] = useState(null);
+  const [activeView, setActiveView] = useState('doc'); // 'doc' | 'ats' | 'parsed' | 'raw'
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchResumeData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.get(`/resumes/${resumeId}`);
+        if (!isMounted) return;
+        const fetchedResume = res.resume || res;
+        setResume(fetchedResume);
+
+        try {
+          const htmlRes = await api.get(`/resumes/${resumeId}/preview-html`);
+          if (isMounted && htmlRes?.html) {
+            setPreviewHtml(htmlRes.html);
+          }
+        } catch (e) {
+          console.warn('HTML preview fetch failed, using fallback:', e);
+        }
+
+        try {
+          const atsRes = await api.get(`/resumes/${resumeId}/ats-score`);
+          if (isMounted && atsRes?.atsScore !== undefined) {
+            setAtsData(atsRes);
+          }
+        } catch (e) {
+          console.warn('ATS score fetch failed:', e);
+        }
+      } catch (err) {
+        if (isMounted) setError(err.message || 'Failed to load resume details');
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    if (resumeId) {
+      fetchResumeData();
+    }
+    return () => { isMounted = false; };
+  }, [resumeId]);
+
+  const token = localStorage.getItem('jd_token');
+  const fileUrl = `/api/resumes/${resumeId}/file${token ? `?token=${token}` : ''}`;
+  const downloadPdfUrl = `/api/resumes/${resumeId}/download.pdf${token ? `?token=${token}` : ''}`;
+  const downloadDocxUrl = `/api/resumes/${resumeId}/download.docx${token ? `?token=${token}` : ''}`;
+
+  const prof = resume?.parsedProfile || {};
+  const atsScore = atsData?.atsScore ?? resume?.atsScore ?? null;
+  const fileName = resume?.resumeName || resume?.originalFileName || resume?.originalName || 'Resume';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
+      <div className="relative w-full max-w-5xl h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
+        {/* Top Header */}
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-200 px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shrink-0 gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600/30 border border-indigo-400/30 text-indigo-300 shrink-0">
+              <FileText className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-white text-base truncate">{fileName}</h3>
+                {resume?.isPrimary && (
+                  <span className="rounded-full bg-blue-500/30 border border-blue-400/40 px-2 py-0.5 text-[10px] font-bold text-blue-200 uppercase">
+                    Primary
+                  </span>
+                )}
+                <span className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-bold text-slate-300 uppercase">
+                  {resume?.fileType || 'DOC'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 truncate mt-0.5">
+                Candidate: <span className="text-slate-200 font-semibold">{prof.name || resume?.userId?.name || 'Candidate'}</span>
+                {prof.email ? ` · ${prof.email}` : resume?.userId?.email ? ` · ${resume.userId.email}` : ''}
+                {resume?.createdAt ? ` · Uploaded ${formatDate(resume.createdAt)}` : ''}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Actions in Header */}
+          <div className="flex items-center gap-2">
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+              title="Open original uploaded file or inline PDF"
+            >
+              <ExternalLink className="h-3.5 w-3.5 text-slate-300" />
+              <span>Original File</span>
+            </a>
+            <a
+              href={downloadPdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors shadow-sm"
+              title="Download ATS formatted PDF"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>PDF</span>
+            </a>
+            <a
+              href={downloadDocxUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors shadow-sm"
+              title="Download Word Document"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>DOCX</span>
+            </a>
+            <button
+              onClick={onClose}
+              className="rounded-xl p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors ml-1"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Navigation Sub-Tabs */}
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-2.5 bg-slate-50/80 shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveView('doc')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                activeView === 'doc' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Document Preview
+            </button>
+            <button
+              onClick={() => setActiveView('ats')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                activeView === 'ats' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <span>ATS Quality &amp; Score</span>
+              {atsScore !== null && (
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                  activeView === 'ats' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {atsScore}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveView('parsed')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                activeView === 'parsed' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Extracted Profile &amp; Skills
+            </button>
+            {resume?.rawText && (
+              <button
+                onClick={() => setActiveView('raw')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  activeView === 'raw' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Raw Text
+              </button>
+            )}
+          </div>
+
+          {atsScore !== null && (
+            <div className="hidden sm:flex items-center gap-2 text-xs">
+              <span className="text-slate-400">ATS Quality Score:</span>
+              <span className={`font-black px-2.5 py-0.5 rounded-lg text-xs ${
+                atsScore >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                atsScore >= 50 ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}>
+                {atsScore} / 100
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Content Body */}
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-100/50">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+              <RefreshCw className="h-8 w-8 text-indigo-600 animate-spin" />
+              <p className="font-semibold text-slate-600 text-sm">Rendering resume preview and parsing details…</p>
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl bg-red-50 border border-red-200 p-6 text-red-700 text-sm max-w-lg mx-auto">
+              <p className="font-bold">Error loading resume:</p>
+              <p className="mt-1">{error}</p>
+            </div>
+          ) : (
+            <>
+              {/* VIEW 1: Formatted Document */}
+              {activeView === 'doc' && (
+                <div className="max-w-3xl mx-auto rounded-2xl bg-white p-8 sm:p-12 shadow-sm border border-slate-200 min-h-full">
+                  {previewHtml ? (
+                    <div
+                      className="prose prose-slate max-w-none text-slate-800 text-sm leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: previewHtml }}
+                    />
+                  ) : resume?.rawText ? (
+                    <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
+                      {resume.rawText}
+                    </pre>
+                  ) : (
+                    <div className="text-center py-12 text-slate-400 text-sm">
+                      No document text or HTML preview available for this resume.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VIEW 2: ATS Breakdown */}
+              {activeView === 'ats' && (
+                <div className="max-w-3xl mx-auto space-y-6">
+                  {/* ATS Score card */}
+                  <div className="rounded-2xl border border-indigo-200 bg-white p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Resume Quality Rating</span>
+                      <h4 className="text-2xl font-black text-slate-900 mt-1">Applicant Tracking System (ATS) Analysis</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">Automated screening metric based on completeness, contact data, skills, and structure.</p>
+                    </div>
+                    <div className="flex flex-col items-center justify-center h-20 w-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md">
+                      <span className="text-3xl font-black leading-none">{atsScore ?? '—'}</span>
+                      <span className="text-[10px] font-bold uppercase mt-1">/ 100</span>
+                    </div>
+                  </div>
+
+                  {/* Categories */}
+                  {atsData?.categories && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Category Breakdown</h4>
+                      <div className="grid gap-3">
+                        {atsData.categories.map((cat, idx) => (
+                          <div key={idx} className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-slate-800">{cat.label}</span>
+                              <span className="font-semibold text-slate-600">{cat.score} / {cat.max} pts</span>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  (cat.score / cat.max) >= 0.8 ? 'bg-emerald-500' :
+                                  (cat.score / cat.max) >= 0.5 ? 'bg-blue-500' : 'bg-amber-500'
+                                }`}
+                                style={{ width: `${Math.round((cat.score / cat.max) * 100)}%` }}
+                              />
+                            </div>
+                            {cat.tip && cat.score < cat.max && (
+                              <p className="text-[11px] text-slate-400">{cat.tip}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI Recommendations */}
+                  {atsData?.aiRecommendations?.length > 0 && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-6 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-600" />
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">Optimization Recommendations</h4>
+                      </div>
+                      <ul className="space-y-2">
+                        {atsData.aiRecommendations.map((rec, i) => (
+                          <li key={i} className="text-xs text-amber-950 flex items-start gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VIEW 3: Parsed Profile & Skills */}
+              {activeView === 'parsed' && (
+                <div className="max-w-3xl mx-auto space-y-6">
+                  {/* Contact Info */}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Parsed Contact Information</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Full Name</span>
+                        <span className="font-semibold text-slate-800">{prof.name || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Email</span>
+                        <span className="font-semibold text-slate-800 truncate block">{prof.email || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Phone</span>
+                        <span className="font-semibold text-slate-800">{prof.phone || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Location</span>
+                        <span className="font-semibold text-slate-800">{prof.location || '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  {prof.summary && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Executive Summary</h4>
+                      <p className="text-xs text-slate-700 leading-relaxed">{prof.summary}</p>
+                    </div>
+                  )}
+
+                  {/* Skills */}
+                  {(prof.skills || []).length > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Extracted Skills ({prof.skills.length})
+                      </h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {prof.skills.map((skill, i) => (
+                          <span key={i} className="rounded-lg bg-indigo-50 border border-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Work Experience */}
+                  {(prof.companies || []).length > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Work Experience</h4>
+                      <div className="divide-y divide-slate-100">
+                        {prof.companies.map((c, i) => (
+                          <div key={i} className="py-3 first:pt-0 last:pb-0 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <p className="font-bold text-slate-900 text-xs">{c.role || 'Role'}</p>
+                              <span className="text-[11px] text-slate-400">{[c.startDate, c.endDate].filter(Boolean).join(' - ')}</span>
+                            </div>
+                            <p className="text-xs font-semibold text-blue-700">{c.name || c.company || ''}</p>
+                            {(c.highlights || []).length > 0 && (
+                              <ul className="list-disc pl-4 text-xs text-slate-600 space-y-0.5 pt-1">
+                                {c.highlights.map((h, hi) => <li key={hi}>{h}</li>)}
+                              </ul>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Education */}
+                  {(prof.education || []).length > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Education</h4>
+                      <div className="divide-y divide-slate-100">
+                        {prof.education.map((e, i) => (
+                          <div key={i} className="py-2 first:pt-0 last:pb-0 text-xs text-slate-700">
+                            <p className="font-bold text-slate-900">{e.degree || 'Degree'}</p>
+                            <p className="text-slate-600">{e.institution || ''} {e.year ? `(${e.year})` : ''}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VIEW 4: Raw Text */}
+              {activeView === 'raw' && resume?.rawText && (
+                <div className="max-w-3xl mx-auto rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
+                  <pre className="text-xs text-slate-800 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
+                    {resume.rawText}
+                  </pre>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main Admin Dashboard Component ────────────────────────────── */
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('monitor'); // 'monitor' | 'users' | 'logs' | 'jobs'
 
@@ -1140,6 +1587,26 @@ export default function AdminDashboard() {
   const [infoModalUser, setInfoModalUser] = useState(null);
   const [passwordModalUser, setPasswordModalUser] = useState(null);
   const [editModalUser, setEditModalUser] = useState(null);
+
+  // Cross-user Applications state
+  const [apps, setApps] = useState([]);
+  const [appsLoading, setAppsLoading] = useState(false);
+  const [appSearch, setAppSearch] = useState('');
+  const [appStatusFilter, setAppStatusFilter] = useState('all');
+  const [appPage, setAppPage] = useState(1);
+  const [appPagination, setAppPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
+  const [appStatusCounts, setAppStatusCounts] = useState({});
+
+  // Cross-user Resumes state
+  const [resumesList, setResumesList] = useState([]);
+  const [resumesListLoading, setResumesListLoading] = useState(false);
+  const [resumeSearch, setResumeSearch] = useState('');
+  const [resumePage, setResumePage] = useState(1);
+  const [resumePagination, setResumePagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
+
+  // Resume Preview modal state
+  const [previewResumeId, setPreviewResumeId] = useState(null);
+  const [previewResumeData, setPreviewResumeData] = useState(null);
 
   // Row password reveal state
   const [revealedRowPasswords, setRevealedRowPasswords] = useState({});
@@ -1189,7 +1656,7 @@ export default function AdminDashboard() {
     }
   }, [userPage, userSearch, userRoleFilter, userStatusFilter, userOnlineFilter]);
 
-  /* ─── Fetch Logs ───────────────────────────────────────────────── */
+  /* ─── Fetch Logs / Activity ─────────────────────────────────────── */
   const fetchLogs = useCallback(async () => {
     setLogsLoading(true);
     try {
@@ -1204,12 +1671,51 @@ export default function AdminDashboard() {
       setLogs(res.logs || []);
       setLogPagination(res.pagination || { page: 1, limit: 25, total: 0, totalPages: 1 });
     } catch (err) {
-      toast.error(err.message || 'Failed to load auth logs');
+      toast.error(err.message || 'Failed to load activity logs');
     } finally {
       setLogsLoading(false);
     }
   }, [logPage, logSearch, logActionFilter, logStatusFilter, logLiveOnly]);
 
+<<<<<<< HEAD
+  /* ─── Fetch Applications (Cross-user) ─────────────────────────── */
+  const fetchApplications = useCallback(async () => {
+    setAppsLoading(true);
+    try {
+      const res = await adminService.getApplications({
+        page: appPage,
+        limit: 15,
+        search: appSearch,
+        status: appStatusFilter !== 'all' ? appStatusFilter : undefined,
+      });
+      setApps(res.applications || []);
+      setAppStatusCounts(res.statusCounts || {});
+      setAppPagination(res.pagination || { page: 1, limit: 15, total: 0, totalPages: 1 });
+    } catch (err) {
+      toast.error(err.message || 'Failed to load applications');
+    } finally {
+      setAppsLoading(false);
+    }
+  }, [appPage, appSearch, appStatusFilter]);
+
+  /* ─── Fetch Resumes (Cross-user) ───────────────────────────────── */
+  const fetchResumesList = useCallback(async () => {
+    setResumesListLoading(true);
+    try {
+      const res = await adminService.getResumes({
+        page: resumePage,
+        limit: 15,
+        search: resumeSearch,
+      });
+      setResumesList(res.resumes || []);
+      setResumePagination(res.pagination || { page: 1, limit: 15, total: 0, totalPages: 1 });
+    } catch (err) {
+      toast.error(err.message || 'Failed to load resumes');
+    } finally {
+      setResumesListLoading(false);
+    }
+  }, [resumePage, resumeSearch]);
+=======
   /* ─── Fetch Admin Jobs ─────────────────────────────────────────── */
   const fetchAdminJobs = useCallback(async () => {
     setAdminJobsLoading(true);
@@ -1230,6 +1736,7 @@ export default function AdminDashboard() {
       setAdminJobsLoading(false);
     }
   }, [adminJobPage, jobSearch, jobStatusFilter, jobSourceFilter, jobSortBy]);
+>>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
 
   // Initial load
   useEffect(() => {
@@ -1245,20 +1752,39 @@ export default function AdminDashboard() {
   }, [activeTab, fetchLogs]);
 
   useEffect(() => {
+<<<<<<< HEAD
+    if (activeTab === 'applications') fetchApplications();
+  }, [activeTab, fetchApplications]);
+
+  useEffect(() => {
+    if (activeTab === 'resumes') fetchResumesList();
+  }, [activeTab, fetchResumesList]);
+
+  // Auto-refresh interval (every 12 seconds for stats and active tab)
+=======
     if (activeTab === 'jobs') fetchAdminJobs();
   }, [activeTab, fetchAdminJobs]);
 
   // Auto-refresh interval (every 12 seconds for stats and live monitor)
+>>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
   useEffect(() => {
     if (!autoRefresh) return;
     refreshTimerRef.current = setInterval(() => {
       fetchStats();
       if (activeTab === 'users') fetchUsers();
       if (activeTab === 'logs') fetchLogs();
+<<<<<<< HEAD
+      if (activeTab === 'applications') fetchApplications();
+      if (activeTab === 'resumes') fetchResumesList();
+    }, 12000);
+    return () => clearInterval(refreshTimerRef.current);
+  }, [autoRefresh, activeTab, fetchStats, fetchUsers, fetchLogs, fetchApplications, fetchResumesList]);
+=======
       if (activeTab === 'jobs') fetchAdminJobs();
     }, 12000);
     return () => clearInterval(refreshTimerRef.current);
   }, [autoRefresh, activeTab, fetchStats, fetchUsers, fetchLogs, fetchAdminJobs]);
+>>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
 
   /* ─── Actions ──────────────────────────────────────────────────── */
   const handleForceLogout = async (userId, userName) => {
@@ -1341,35 +1867,88 @@ export default function AdminDashboard() {
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total Users */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div
+          onClick={() => {
+            setActiveTab('users');
+            setUserStatusFilter('all');
+            setUserRoleFilter('all');
+            setUserOnlineFilter('all');
+            setUserPage(1);
+          }}
+          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-blue-400 group"
+          title="Click to view all registered users"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Registered Users</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 group-hover:text-blue-600 transition-colors">
+              Total Registered Users ↗
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
               <Users className="h-5 w-5" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-900">{stats?.users?.total ?? '—'}</span>
-            <span className="text-xs font-bold text-emerald-600">
+            <span className="text-3xl font-black text-slate-900 group-hover:text-blue-600 transition-colors">
+              {stats?.users?.total ?? '—'}
+            </span>
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTab('users');
+                setUserStatusFilter('active');
+                setUserPage(1);
+              }}
+              className="text-xs font-bold text-emerald-600 hover:underline bg-emerald-50 px-2 py-0.5 rounded-md"
+              title="Filter active users"
+            >
               {stats?.users?.active ?? 0} active
             </span>
           </div>
-          <p className="mt-1 text-xs text-slate-400">
-            {stats?.users?.admins ?? 0} Admin · {stats?.users?.suspended ?? 0} Suspended
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTab('users');
+                setUserRoleFilter('admin');
+                setUserPage(1);
+              }}
+              className="font-semibold text-rose-600 hover:underline bg-rose-50 px-1.5 py-0.5 rounded"
+              title="Filter admin users"
+            >
+              {stats?.users?.admins ?? 0} Admin
+            </span>
+            <span>·</span>
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTab('users');
+                setUserStatusFilter('suspended');
+                setUserPage(1);
+              }}
+              className="font-semibold text-amber-700 hover:underline bg-amber-50 px-1.5 py-0.5 rounded"
+              title="Filter suspended users"
+            >
+              {stats?.users?.suspended ?? 0} Suspended
+            </span>
+          </div>
         </div>
 
         {/* Card 2: Live Online Users */}
-        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/60 to-white p-5 shadow-sm relative overflow-hidden">
+        <div
+          onClick={() => setActiveTab('monitor')}
+          className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/60 to-white p-5 shadow-sm relative overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-emerald-400 group"
+          title="Click to switch to Live User Monitor"
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="relative flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-900">Live Online Users</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-900 group-hover:text-emerald-700 transition-colors">
+                Live Online Users ↗
+              </span>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
               <Activity className="h-5 w-5" />
             </div>
           </div>
@@ -1378,23 +1957,45 @@ export default function AdminDashboard() {
             <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Online Now</span>
           </div>
           <p className="mt-1 text-xs text-emerald-700/80">
-            {liveSessions.length} active sessions logged
+            {liveSessions.length} active sessions logged (click to monitor)
           </p>
         </div>
 
         {/* Card 3: 24h Login Activity */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div
+          onClick={() => {
+            setActiveTab('logs');
+            setLogActionFilter('all');
+            setLogStatusFilter('all');
+            setLogPage(1);
+          }}
+          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-indigo-400 group"
+          title="Click to view all authentication logs"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Logins (Last 24h)</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 group-hover:text-indigo-600 transition-colors">
+              Logins (Last 24h) ↗
+            </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
               <Clock className="h-5 w-5" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-900">{stats?.activity?.logins24h ?? '—'}</span>
+            <span className="text-3xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors">
+              {stats?.activity?.logins24h ?? '—'}
+            </span>
             <span className="text-xs text-slate-500">successful</span>
           </div>
-          <p className="mt-1 text-xs text-rose-500 font-semibold">
+          <p
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveTab('logs');
+              setLogStatusFilter('failed');
+              setLogPage(1);
+            }}
+            className="mt-1 text-xs text-rose-500 font-semibold hover:underline inline-block"
+            title="Filter failed login logs"
+          >
             {stats?.activity?.failedLogins24h ?? 0} failed login attempts
           </p>
         </div>
@@ -1407,21 +2008,51 @@ export default function AdminDashboard() {
               <FileText className="h-5 w-5" />
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-900">{stats?.entities?.resumes ?? '—'}</span>
-            <span className="text-xs text-slate-500">resumes stored</span>
+          <div
+            onClick={() => {
+              setActiveTab('resumes');
+              setResumeSearch('');
+              setResumePage(1);
+            }}
+            className="mt-3 flex items-baseline gap-2 cursor-pointer group"
+            title="Click to view all candidate resumes & preview"
+          >
+            <span className="text-3xl font-black text-slate-900 group-hover:text-violet-600 transition-colors">
+              {stats?.entities?.resumes ?? '—'}
+            </span>
+            <span className="text-xs text-slate-500 group-hover:text-violet-600 group-hover:underline transition-colors">
+              resumes stored ↗
+            </span>
           </div>
-          <p className="mt-1 text-xs text-slate-400">
-            {stats?.entities?.jobs ?? 0} jobs · {stats?.entities?.applications ?? 0} applications
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <button
+              onClick={() => navigate('/jobs?primaryOnly=false')}
+              className="font-bold text-blue-600 hover:text-blue-800 hover:underline bg-blue-50 px-2 py-0.5 rounded-md"
+              title="Click to view all jobs"
+            >
+              {stats?.entities?.jobs ?? 0} jobs ↗
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('applications');
+                setAppSearch('');
+                setAppStatusFilter('all');
+                setAppPage(1);
+              }}
+              className="font-bold text-emerald-700 hover:text-emerald-900 hover:underline bg-emerald-50 px-2 py-0.5 rounded-md"
+              title="Click to view all applications across all users"
+            >
+              {stats?.entities?.applications ?? 0} applications ↗
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Tabs bar */}
-      <div className="flex border-b border-slate-200 bg-white rounded-2xl shadow-sm p-1.5 gap-2">
+      <div className="flex border-b border-slate-200 bg-white rounded-2xl shadow-sm p-1.5 gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('monitor')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
             activeTab === 'monitor'
               ? 'bg-rose-600 text-white shadow-md'
               : 'text-slate-600 hover:bg-slate-100'
@@ -1438,7 +2069,7 @@ export default function AdminDashboard() {
 
         <button
           onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
             activeTab === 'users'
               ? 'bg-blue-600 text-white shadow-md'
               : 'text-slate-600 hover:bg-slate-100'
@@ -1454,15 +2085,49 @@ export default function AdminDashboard() {
         </button>
 
         <button
+          onClick={() => setActiveTab('applications')}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
+            activeTab === 'applications'
+              ? 'bg-emerald-600 text-white shadow-md'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Briefcase className="h-4 w-4" />
+          <span>All Applications</span>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+            activeTab === 'applications' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+          }`}>
+            {stats?.entities?.applications ?? 0}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('resumes')}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
+            activeTab === 'resumes'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <FileText className="h-4 w-4" />
+          <span>All Resumes &amp; Preview</span>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+            activeTab === 'resumes' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+          }`}>
+            {stats?.entities?.resumes ?? 0}
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('logs')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
             activeTab === 'logs'
               ? 'bg-slate-900 text-white shadow-md'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <Clock className="h-4 w-4" />
-          <span>Login / Logout Audit Logs</span>
+          <span>User Activity &amp; Audit Logs</span>
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
             activeTab === 'logs' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
           }`}>
@@ -1883,7 +2548,508 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ─── TAB 3: Login / Logout Audit Logs ─────────────────────────── */}
+      {/* ─── TAB 3: All User Applications (Cross-User) ─────────────────── */}
+      {activeTab === 'applications' && (
+        <div className="space-y-4">
+          {/* Header & Stats */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <div>
+              <div className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5 text-emerald-600" />
+                <h2 className="text-lg font-black text-slate-900">All User Job Applications</h2>
+                <span className="rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5">
+                  {appPagination.total} Total
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Inspect, monitor, and filter job applications tracked by every candidate across the platform
+              </p>
+            </div>
+
+            {/* Quick Status Badges */}
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <button
+                onClick={() => { setAppStatusFilter('all'); setAppPage(1); }}
+                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
+                  appStatusFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                All ({appPagination.total})
+              </button>
+              <button
+                onClick={() => { setAppStatusFilter('Applied'); setAppPage(1); }}
+                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
+                  appStatusFilter === 'Applied' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                }`}
+              >
+                Applied ({appStatusCounts['Applied'] || 0})
+              </button>
+              <button
+                onClick={() => { setAppStatusFilter('Interview Scheduled,Technical Interview,HR Interview'); setAppPage(1); }}
+                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
+                  appStatusFilter.includes('Interview') ? 'bg-purple-600 text-white shadow-xs' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                }`}
+              >
+                Interviews ({(appStatusCounts['Interview Scheduled'] || 0) + (appStatusCounts['Technical Interview'] || 0) + (appStatusCounts['HR Interview'] || 0)})
+              </button>
+              <button
+                onClick={() => { setAppStatusFilter('Offer,Accepted'); setAppPage(1); }}
+                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
+                  appStatusFilter.includes('Offer') ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                }`}
+              >
+                Offers ({(appStatusCounts['Offer'] || 0) + (appStatusCounts['Accepted'] || 0)})
+              </button>
+              <button
+                onClick={() => { setAppStatusFilter('Rejected,Withdrawn'); setAppPage(1); }}
+                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
+                  appStatusFilter.includes('Rejected') ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                }`}
+              >
+                Rejected ({(appStatusCounts['Rejected'] || 0) + (appStatusCounts['Withdrawn'] || 0)})
+              </button>
+            </div>
+          </div>
+
+          {/* Search bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={appSearch}
+                onChange={e => { setAppSearch(e.target.value); setAppPage(1); }}
+                placeholder="Search applications by candidate name, company, role, location, or notes…"
+                className="w-full rounded-xl border border-slate-200 pl-9 pr-4 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+            {appSearch && (
+              <button
+                onClick={() => { setAppSearch(''); setAppPage(1); }}
+                className="text-xs text-slate-500 hover:text-slate-800 font-semibold"
+              >
+                Clear Search
+              </button>
+            )}
+          </div>
+
+          {/* Applications Table */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="px-5 py-3.5">Candidate / Applicant</th>
+                    <th className="px-4 py-3.5">Role &amp; Target Company</th>
+                    <th className="px-4 py-3.5">Application Status</th>
+                    <th className="px-4 py-3.5">Applied Date</th>
+                    <th className="px-4 py-3.5">Match Score</th>
+                    <th className="px-4 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {appsLoading ? (
+                    <tr>
+                      <td colSpan="6" className="p-12 text-center text-slate-400">
+                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-emerald-600" />
+                        Loading applications across all users…
+                      </td>
+                    </tr>
+                  ) : apps.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="p-12 text-center text-slate-400">
+                        <Briefcase className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                        No applications found matching your search and filter criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    apps.map((app) => {
+                      const user = app.userId || {};
+                      const job = app.jobId || {};
+                      const roleName = app.role || job.jobTitle || app.jobTitle || 'Role';
+                      const compName = app.company || job.companyName || app.companyName || '—';
+                      return (
+                        <tr key={app._id} className="hover:bg-slate-50/70 transition-colors">
+                          {/* Candidate info */}
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div
+                                onClick={() => user._id && setInfoModalUser(user)}
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs cursor-pointer hover:opacity-90 transition-opacity"
+                                title="Click to view full user details"
+                              >
+                                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                              </div>
+                              <div className="min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => user._id && setInfoModalUser(user)}
+                                  className="font-bold text-slate-900 truncate hover:text-indigo-600 transition-colors text-left block text-xs"
+                                >
+                                  {user.name || 'Unknown User'}
+                                </button>
+                                <p className="text-[11px] text-slate-400 truncate">{user.email || '—'}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Role & Company */}
+                          <td className="px-4 py-3.5">
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 text-xs truncate">{roleName}</p>
+                              <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mt-0.5">
+                                <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
+                                <span className="font-semibold text-slate-700 truncate">{compName}</span>
+                                {app.location && <span>· {app.location}</span>}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-4 py-3.5">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+                              (app.status || '').toLowerCase().includes('offer') ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                              (app.status || '').toLowerCase().includes('interview') ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                              (app.status || '').toLowerCase().includes('reject') ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                              (app.status || '').toLowerCase().includes('view') ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                              'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}>
+                              {app.status || 'Applied'}
+                            </span>
+                            {app.timeline?.length > 1 && (
+                              <span className="text-[10px] text-slate-400 block mt-0.5">
+                                {app.timeline.length} status stages
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Applied Date */}
+                          <td className="px-4 py-3.5 whitespace-nowrap text-slate-600 text-xs">
+                            {formatDate(app.createdAt)}
+                            <span className="text-[10px] text-slate-400 block">{formatTimeAgo(app.updatedAt)}</span>
+                          </td>
+
+                          {/* Match score */}
+                          <td className="px-4 py-3.5">
+                            {job.matchScore !== undefined ? (
+                              <span className={`rounded-lg px-2 py-0.5 text-[11px] font-black ${
+                                job.matchScore >= 80 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                job.matchScore >= 60 ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                'bg-slate-100 text-slate-600'
+                              }`}>
+                                {job.matchScore}%
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-xs">—</span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {user._id && (
+                                <button
+                                  type="button"
+                                  onClick={() => setInfoModalUser(user)}
+                                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+                                  title="View complete candidate dashboard & history"
+                                >
+                                  <Users className="h-3 w-3 text-slate-400" />
+                                  <span>Applicant</span>
+                                </button>
+                              )}
+                              {job.url && (
+                                <a
+                                  href={job.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-1 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                                  title="Open external job posting"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {appPagination.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 bg-slate-50 text-xs">
+                <p className="text-slate-500">
+                  Showing page <span className="font-bold text-slate-800">{appPage}</span> of {appPagination.totalPages} ({appPagination.total} total applications)
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={appPage <= 1}
+                    onClick={() => setAppPage(p => p - 1)}
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    disabled={appPage >= appPagination.totalPages}
+                    onClick={() => setAppPage(p => p + 1)}
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 disabled:opacity-40"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── TAB 4: All User Resumes & Preview (Cross-User) ──────────────── */}
+      {activeTab === 'resumes' && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <div>
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-indigo-600" />
+                <h2 className="text-lg font-black text-slate-900">All Candidate Resumes &amp; In-App Previews</h2>
+                <span className="rounded-full bg-indigo-100 text-indigo-800 text-xs font-bold px-2.5 py-0.5">
+                  {resumePagination.total} Resumes Stored
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Preview any user's resume in formatted HTML or raw text, inspect ATS quality score, and download PDF or Word files
+              </p>
+            </div>
+          </div>
+
+          {/* Search bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={resumeSearch}
+                onChange={e => { setResumeSearch(e.target.value); setResumePage(1); }}
+                placeholder="Search resumes by candidate name, resume title, original filename, or skills…"
+                className="w-full rounded-xl border border-slate-200 pl-9 pr-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            {resumeSearch && (
+              <button
+                onClick={() => { setResumeSearch(''); setResumePage(1); }}
+                className="text-xs text-slate-500 hover:text-slate-800 font-semibold"
+              >
+                Clear Search
+              </button>
+            )}
+          </div>
+
+          {/* Resumes List */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="px-5 py-3.5">Candidate / User</th>
+                    <th className="px-4 py-3.5">Resume Name &amp; File</th>
+                    <th className="px-4 py-3.5">ATS Score</th>
+                    <th className="px-4 py-3.5">Extracted Skills</th>
+                    <th className="px-4 py-3.5">Uploaded</th>
+                    <th className="px-4 py-3.5 text-right">Preview &amp; Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {resumesListLoading ? (
+                    <tr>
+                      <td colSpan="6" className="p-12 text-center text-slate-400">
+                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-indigo-600" />
+                        Loading resumes across all candidates…
+                      </td>
+                    </tr>
+                  ) : resumesList.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="p-12 text-center text-slate-400">
+                        <FileText className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                        No resumes found matching your search.
+                      </td>
+                    </tr>
+                  ) : (
+                    resumesList.map((r) => {
+                      const user = r.userId || {};
+                      const prof = r.parsedProfile || {};
+                      const fileName = r.resumeName || r.originalFileName || r.originalName || 'Resume';
+                      const token = localStorage.getItem('jd_token');
+                      const fileUrl = `/api/resumes/${r._id}/file${token ? `?token=${token}` : ''}`;
+                      const downloadPdfUrl = `/api/resumes/${r._id}/download.pdf${token ? `?token=${token}` : ''}`;
+
+                      return (
+                        <tr key={r._id} className="hover:bg-slate-50/70 transition-colors">
+                          {/* Candidate info */}
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div
+                                onClick={() => user._id && setInfoModalUser(user)}
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs cursor-pointer hover:opacity-90 transition-opacity"
+                                title="Click to view candidate profile"
+                              >
+                                {user.name ? user.name.charAt(0).toUpperCase() : 'C'}
+                              </div>
+                              <div className="min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => user._id && setInfoModalUser(user)}
+                                  className="font-bold text-slate-900 truncate hover:text-indigo-600 transition-colors text-left block text-xs"
+                                >
+                                  {prof.name || user.name || 'Candidate'}
+                                </button>
+                                <p className="text-[11px] text-slate-400 truncate">{prof.email || user.email || '—'}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Resume name and format */}
+                          <td className="px-4 py-3.5">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-slate-900 text-xs truncate max-w-[200px]">{fileName}</p>
+                                {r.isPrimary && (
+                                  <span className="rounded-full bg-blue-600 px-2 py-0.2 text-[9px] font-bold text-white uppercase">
+                                    PRIMARY
+                                  </span>
+                                )}
+                                <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[10px] font-bold text-slate-600 uppercase">
+                                  {r.fileType || 'PDF'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                                {r.originalFileName || r.originalName || ''}
+                              </p>
+                            </div>
+                          </td>
+
+                          {/* ATS Score */}
+                          <td className="px-4 py-3.5">
+                            {r.atsScore !== null && r.atsScore !== undefined ? (
+                              <div className="inline-flex items-center gap-1.5">
+                                <span className={`rounded-xl px-2.5 py-1 text-xs font-black shadow-2xs ${
+                                  r.atsScore >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                  r.atsScore >= 50 ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                  'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                  {r.atsScore} / 100
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs">—</span>
+                            )}
+                          </td>
+
+                          {/* Skills preview */}
+                          <td className="px-4 py-3.5">
+                            {(prof.skills || []).length > 0 ? (
+                              <div className="flex flex-wrap gap-1 max-w-xs">
+                                {prof.skills.slice(0, 4).map((skill, si) => (
+                                  <span key={si} className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                                    {skill}
+                                  </span>
+                                ))}
+                                {prof.skills.length > 4 && (
+                                  <span className="text-[10px] text-slate-400 font-semibold">+{prof.skills.length - 4}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-[11px] italic">No skills extracted</span>
+                            )}
+                          </td>
+
+                          {/* Upload date */}
+                          <td className="px-4 py-3.5 whitespace-nowrap text-slate-600 text-xs">
+                            {formatDate(r.createdAt)}
+                            <span className="text-[10px] text-slate-400 block">{formatTimeAgo(r.createdAt)}</span>
+                          </td>
+
+                          {/* Action Buttons */}
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* PREVIEW BUTTON */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPreviewResumeId(r._id);
+                                  setPreviewResumeData(r);
+                                }}
+                                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-bold transition-colors shadow-xs"
+                                title="Open full in-app preview for this resume"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                <span>Preview</span>
+                              </button>
+
+                              {/* Original file link */}
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                                title="Open raw uploaded file or inline PDF"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+                                <span>File</span>
+                              </a>
+
+                              {/* Download PDF */}
+                              <a
+                                href={downloadPdfUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 rounded-lg border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-700 transition-colors"
+                                title="Download ATS formatted PDF"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {resumePagination.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 bg-slate-50 text-xs">
+                <p className="text-slate-500">
+                  Showing page <span className="font-bold text-slate-800">{resumePage}</span> of {resumePagination.totalPages} ({resumePagination.total} total resumes)
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={resumePage <= 1}
+                    onClick={() => setResumePage(p => p - 1)}
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    disabled={resumePage >= resumePagination.totalPages}
+                    onClick={() => setResumePage(p => p + 1)}
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 disabled:opacity-40"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── TAB 5: User Activity & Audit Stream ────────────────────────── */}
       {activeTab === 'logs' && (
         <div className="space-y-4">
           {/* Search & Filters */}
@@ -1894,7 +3060,7 @@ export default function AdminDashboard() {
                 type="text"
                 value={logSearch}
                 onChange={e => { setLogSearch(e.target.value); setLogPage(1); }}
-                placeholder="Search logs by email, user name, IP address, or browser…"
+                placeholder="Search activity by email, user name, action, IP, or details…"
                 className="w-full rounded-xl border border-slate-200 pl-9 pr-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -1906,10 +3072,14 @@ export default function AdminDashboard() {
                 onChange={e => { setLogActionFilter(e.target.value); setLogPage(1); }}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 focus:border-blue-500 focus:outline-none"
               >
-                <option value="all">All Events</option>
-                <option value="login">Login Events</option>
-                <option value="logout">Logout Events</option>
+                <option value="all">All Activities &amp; Events</option>
+                <option value="login">Logins</option>
+                <option value="logout">Logouts</option>
                 <option value="failed_login">Failed Logins</option>
+                <option value="application_create">Applications Created</option>
+                <option value="application_update">Applications Updated</option>
+                <option value="resume_upload">Resumes Uploaded</option>
+                <option value="resume_delete">Resumes Deleted</option>
                 <option value="password_change">Password Changes</option>
                 <option value="force_logout">Force Logouts</option>
               </select>
@@ -1946,12 +3116,12 @@ export default function AdminDashboard() {
                   <tr>
                     <th className="px-5 py-3.5">Timestamp</th>
                     <th className="px-4 py-3.5">User</th>
-                    <th className="px-4 py-3.5">Event Action</th>
+                    <th className="px-4 py-3.5">Activity / Event</th>
+                    <th className="px-4 py-3.5">Activity Details</th>
                     <th className="px-4 py-3.5">Status</th>
                     <th className="px-4 py-3.5">IP Address</th>
-                    <th className="px-4 py-3.5">Device &amp; OS</th>
-                    <th className="px-4 py-3.5">Browser</th>
-                    <th className="px-4 py-3.5">Session Duration</th>
+                    <th className="px-4 py-3.5">Device &amp; Browser</th>
+                    <th className="px-4 py-3.5">Session</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1960,14 +3130,14 @@ export default function AdminDashboard() {
                       <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <RefreshCw className="h-6 w-6 text-slate-900 animate-spin" />
-                          <p className="font-semibold text-sm">Loading audit logs…</p>
+                          <p className="font-semibold text-sm">Loading activity logs…</p>
                         </div>
                       </td>
                     </tr>
                   ) : logs.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
-                        No login or logout logs found matching your filter criteria.
+                        No activity or audit logs found matching your filter criteria.
                       </td>
                     </tr>
                   ) : (
@@ -1990,7 +3160,7 @@ export default function AdminDashboard() {
                           </td>
 
                           {/* Event action */}
-                          <td className="px-4 py-3.5">
+                          <td className="px-4 py-3.5 whitespace-nowrap">
                             {log.action === 'login' && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
                                 LOGIN
@@ -2006,6 +3176,26 @@ export default function AdminDashboard() {
                                 FAILED LOGIN
                               </span>
                             )}
+                            {log.action === 'application_create' && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
+                                APP CREATED
+                              </span>
+                            )}
+                            {log.action === 'application_update' && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200">
+                                APP UPDATED
+                              </span>
+                            )}
+                            {log.action === 'resume_upload' && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200">
+                                RESUME UPLOAD
+                              </span>
+                            )}
+                            {log.action === 'resume_delete' && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-200">
+                                RESUME DELETED
+                              </span>
+                            )}
                             {log.action === 'password_change' && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
                                 PASSWORD CHANGE
@@ -2015,6 +3205,42 @@ export default function AdminDashboard() {
                               <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-0.5 text-[10px] font-bold text-orange-700 border border-orange-200">
                                 FORCE LOGOUT
                               </span>
+                            )}
+                            {!['login', 'logout', 'failed_login', 'password_change', 'force_logout', 'application_create', 'application_update', 'resume_upload', 'resume_delete'].includes(log.action) && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 border border-slate-200 uppercase">
+                                {log.action?.replace('_', ' ') || 'ACTIVITY'}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Activity Details */}
+                          <td className="px-4 py-3.5 text-slate-600 text-xs">
+                            {log.details?.company && (
+                              <div className="font-medium text-slate-800">
+                                <span>{log.details.role || 'Role'}</span>
+                                <span className="text-slate-400"> @ </span>
+                                <span className="text-blue-700 font-semibold">{log.details.company}</span>
+                                {log.details.status && (
+                                  <span className="ml-1 text-[10px] text-slate-500">({log.details.status})</span>
+                                )}
+                              </div>
+                            )}
+                            {log.details?.resumeName && (
+                              <div className="font-medium text-slate-800 truncate max-w-[200px]">
+                                📄 {log.details.resumeName}
+                                {log.details.atsScore !== undefined && (
+                                  <span className="ml-1 text-[10px] text-emerald-600 font-bold">({log.details.atsScore} pts)</span>
+                                )}
+                              </div>
+                            )}
+                            {log.details?.changedBy && (
+                              <span className="text-[11px] text-slate-500">Changed by: {log.details.changedBy}</span>
+                            )}
+                            {log.details?.forcedBy && (
+                              <span className="text-[11px] text-orange-600 font-semibold">Forced by: {log.details.forcedBy}</span>
+                            )}
+                            {!log.details?.company && !log.details?.resumeName && !log.details?.changedBy && !log.details?.forcedBy && (
+                              <span className="text-slate-400">—</span>
                             )}
                           </td>
 
@@ -2041,15 +3267,10 @@ export default function AdminDashboard() {
                             {log.ipAddress || '127.0.0.1'}
                           </td>
 
-                          {/* Device & OS */}
+                          {/* Device & Browser */}
                           <td className="px-4 py-3.5 text-slate-600">
                             <span className="font-semibold text-slate-700">{log.device || 'Desktop'}</span>
-                            <span className="text-slate-400 text-[10px] block">{log.os}</span>
-                          </td>
-
-                          {/* Browser */}
-                          <td className="px-4 py-3.5 text-slate-600 font-medium">
-                            {log.browser || '—'}
+                            <span className="text-slate-400 text-[10px] block">{log.browser} · {log.os}</span>
                           </td>
 
                           {/* Duration / Live */}
@@ -2394,6 +3615,10 @@ export default function AdminDashboard() {
             fetchStats();
             fetchUsers();
           }}
+          onPreviewResume={(resId, rData) => {
+            setPreviewResumeId(resId);
+            setPreviewResumeData(rData);
+          }}
         />
       )}
 
@@ -2415,6 +3640,17 @@ export default function AdminDashboard() {
           onUserUpdated={() => {
             fetchStats();
             fetchUsers();
+          }}
+        />
+      )}
+
+      {previewResumeId && (
+        <AdminResumePreviewModal
+          resumeId={previewResumeId}
+          resumeData={previewResumeData}
+          onClose={() => {
+            setPreviewResumeId(null);
+            setPreviewResumeData(null);
           }}
         />
       )}

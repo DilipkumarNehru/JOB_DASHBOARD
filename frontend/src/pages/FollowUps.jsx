@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { BellRing, CheckCircle2, Plus, CalendarPlus } from 'lucide-react';
+import { BellRing, CheckCircle2, Plus, CalendarPlus, Clock, AlertTriangle, Layers } from 'lucide-react';
 import { followUpService } from '../services';
 import { EmptyState, ErrorState } from '../components/common/Feedbacks.jsx';
 import { Card } from '../components/common/Card.jsx';
@@ -18,11 +18,29 @@ const FOLLOW_UP_STATUS_BADGE = {
 };
 
 export default function FollowUps() {
+  const [params, setParams] = useSearchParams();
+  const urlStatus = params.get('status') || '';
+
   const [followUps, setFollowUps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('');
+  const [filter, setFilter] = useState(urlStatus);
   const [showNew, setShowNew] = useState(false);
+
+  useEffect(() => {
+    setFilter(urlStatus);
+  }, [urlStatus]);
+
+  const updateFilter = (newFilter) => {
+    const next = new URLSearchParams(params);
+    if (newFilter) {
+      next.set('status', newFilter);
+    } else {
+      next.delete('status');
+    }
+    setParams(next);
+    setFilter(newFilter);
+  };
 
   const fetchFollowUps = async () => {
     setLoading(true);
@@ -61,11 +79,11 @@ export default function FollowUps() {
     followUps.filter((f) => effectiveStatus(f) === 'completed').length,
   ];
 
-  const filters = [
-    ['', `All (${followUps.length})`],
-    ['pending', `Pending (${pending})`],
-    ['overdue', `Overdue (${overdue})`],
-    ['completed', `Completed (${completed})`],
+  const filterCards = [
+    { key: '', label: 'All Follow-ups', count: followUps.length, icon: Layers, color: 'text-slate-600 bg-slate-100', border: 'border-slate-200' },
+    { key: 'pending', label: 'Pending Due', count: pending, icon: Clock, color: 'text-amber-600 bg-amber-50', border: 'border-amber-200' },
+    { key: 'overdue', label: 'Overdue Items', count: overdue, icon: AlertTriangle, color: 'text-red-600 bg-red-50', border: 'border-red-200' },
+    { key: 'completed', label: 'Completed', count: completed, icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50', border: 'border-emerald-200' },
   ];
 
   return (
@@ -73,14 +91,58 @@ export default function FollowUps() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Follow-ups</h2>
-          <p className="text-sm text-slate-500">{pending} pending · {overdue} overdue</p>
+          <p className="text-sm text-slate-500">
+            {filter ? (
+              <>Showing <strong>{filter}</strong> follow-ups</>
+            ) : (
+              `${pending} pending · ${overdue} overdue`
+            )}
+          </p>
         </div>
         <button onClick={() => setShowNew(true)} className="btn-primary"><Plus className="h-4 w-4" /> Schedule follow-up</button>
       </div>
 
+      {/* Interactive Status Cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {filterCards.map(c => {
+          const isActive = filter === c.key || (!filter && c.key === '');
+          const Icon = c.icon;
+          return (
+            <div
+              key={c.label}
+              onClick={() => updateFilter(c.key)}
+              className={`cursor-pointer rounded-xl border p-3.5 transition-all duration-200 select-none hover:-translate-y-0.5 hover:shadow-md ${
+                isActive
+                  ? 'border-brand-500 bg-brand-50/40 ring-2 ring-brand-500/20 shadow-sm'
+                  : `bg-white ${c.border} hover:border-slate-300`
+              }`}
+              title={`Click to filter by ${c.label}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">{c.label}</span>
+                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${c.color}`}>
+                  <Icon className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-black text-slate-900">{c.count}</p>
+            </div>
+          );
+        })}
+      </div>
+
       <div className="flex flex-wrap gap-2">
-        {filters.map(([key, label]) => (
-          <button key={key} onClick={() => setFilter(key)} className={`badge ${filter === key ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}>{label}</button>
+        {filterCards.map((c) => (
+          <button
+            key={c.key}
+            onClick={() => updateFilter(c.key)}
+            className={`badge ${
+              filter === c.key || (!filter && c.key === '')
+                ? 'bg-brand-600 text-white'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {c.label} ({c.count})
+          </button>
         ))}
       </div>
 

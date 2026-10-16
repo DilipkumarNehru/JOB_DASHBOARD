@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   Briefcase, Target, FileCheck, Hourglass, Users, CalendarRange, XCircle, BellRing, Gift,
-  FileText, Crown, Layers
+  FileText, Crown, Layers, Sparkles
 } from 'lucide-react';
 import { useFetch } from '../hooks/useFetch.js';
-import { analyticsService, jobService } from '../services';
+import { analyticsService, jobService, resumeService } from '../services';
 import { StatCard, Card } from '../components/common/Card.jsx';
 import { PageLoader, ErrorState, EmptyState } from '../components/common/Feedbacks.jsx';
 import { BarChartWidget, PieChartWidget } from '../charts';
@@ -19,38 +19,101 @@ const statDefs = (s = {}) => [
     value: formatNumber(s.totalResumes || 0),
     icon: FileText,
     color: 'bg-violet-50 text-violet-600',
-    sub: s.primaryResume ? `Primary: ${s.primaryResume.resumeName}` : 'No primary set'
+    sub: s.primaryResume ? `Primary: ${s.primaryResume.resumeName}` : 'No primary set',
+    to: '/resumes'
   },
   {
     label: 'Total Jobs Found',
     value: formatNumber(s.totalUniqueMatchedJobs || s.totalJobs || 0),
     icon: Layers,
     color: 'bg-brand-50 text-brand-600',
-    sub: 'across all resumes'
+    sub: 'across all resumes',
+    to: '/jobs?primaryOnly=false'
+  },
+  {
+    label: 'New Jobs',
+    value: formatNumber(s.newJobs || 0),
+    icon: Sparkles,
+    color: 'bg-sky-50 text-sky-600',
+    sub: 'Newly discovered jobs',
+    to: '/jobs?status=new&primaryOnly=false'
   },
   {
     label: 'Primary Resume Jobs',
     value: formatNumber(s.primaryResumeJobCount || 0),
     icon: Crown,
     color: 'bg-blue-50 text-blue-600',
-    sub: s.primaryResume ? `Pool for ${s.primaryResume.resumeName}` : '—'
+    sub: s.primaryResume ? `Pool for ${s.primaryResume.resumeName}` : '—',
+    to: '/jobs?primaryOnly=true'
   },
   {
     label: 'Matched Jobs',
     value: formatNumber(s.matchedJobs),
     icon: Target,
     color: 'bg-emerald-50 text-emerald-600',
-    sub: s.primaryResume ? `${s.matchedJobs} of ${s.primaryResumeJobCount || 0} jobs matched (≥ ${s.matchThreshold || 70}%)` : '≥ 70% ATS score'
+    sub: s.primaryResume ? `${s.matchedJobs} of ${s.primaryResumeJobCount || 0} jobs matched (≥ ${s.matchThreshold || 70}%)` : '≥ 70% ATS score',
+    to: `/jobs?primaryOnly=true&minAts=${s.matchThreshold || 70}`
   },
-  { label: 'Jobs Applied', value: formatNumber(s.totalApps), icon: FileCheck, color: 'bg-blue-50 text-blue-600' },
-  { label: 'In Progress', value: formatNumber(s.inProgress), icon: Hourglass, color: 'bg-amber-50 text-amber-600' },
-  { label: 'Shortlisted', value: formatNumber(s.shortlisted), icon: Users, color: 'bg-green-50 text-green-600' },
-  { label: 'Interviews', value: formatNumber(s.interviews), icon: CalendarRange, color: 'bg-violet-50 text-violet-600' },
-  { label: 'Rejected', value: formatNumber(s.rejected), icon: XCircle, color: 'bg-red-50 text-red-600' },
-  { label: 'Offers', value: formatNumber(s.offers), icon: Gift, color: 'bg-lime-50 text-lime-600' },
+  {
+    label: 'Jobs Applied',
+    value: formatNumber(s.totalApps),
+    icon: FileCheck,
+    color: 'bg-blue-50 text-blue-600',
+    sub: 'Tracked applications',
+    to: '/applications'
+  },
+  {
+    label: 'In Progress',
+    value: formatNumber(s.inProgress),
+    icon: Hourglass,
+    color: 'bg-amber-50 text-amber-600',
+    sub: 'Applied & screening',
+    to: '/applications?status=In+Progress'
+  },
+  {
+    label: 'Shortlisted',
+    value: formatNumber(s.shortlisted),
+    icon: Users,
+    color: 'bg-green-50 text-green-600',
+    sub: 'Shortlisted for review',
+    to: '/applications?status=Shortlisted'
+  },
+  {
+    label: 'Interviews',
+    value: formatNumber(s.interviews),
+    icon: CalendarRange,
+    color: 'bg-violet-50 text-violet-600',
+    sub: 'Scheduled & ongoing',
+    to: '/applications?status=Interview'
+  },
+  {
+    label: 'Offers',
+    value: formatNumber(s.offers),
+    icon: Gift,
+    color: 'bg-lime-50 text-lime-600',
+    sub: 'Received job offers',
+    to: '/applications?status=Offer'
+  },
+  {
+    label: 'Rejected',
+    value: formatNumber(s.rejected),
+    icon: XCircle,
+    color: 'bg-red-50 text-red-600',
+    sub: 'Archived applications',
+    to: '/applications?status=Rejected'
+  },
+  {
+    label: 'Follow-ups Due',
+    value: formatNumber(s.followUpsDue || 0),
+    icon: BellRing,
+    color: 'bg-amber-50 text-amber-600',
+    sub: s.overdue ? `${s.overdue} overdue items` : 'Due today',
+    to: s.overdue ? '/follow-ups?status=overdue' : '/follow-ups?status=pending'
+  },
 ];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { data, loading, error, refetch } = useFetch(analyticsService.stats);
   const monthly = useFetch(analyticsService.monthly);
   const status = useFetch(analyticsService.statusDistribution);
@@ -127,15 +190,22 @@ export default function Dashboard() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-blue-700">Active Primary Resume</span>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                <Link
+                  to={`/jobs?primaryOnly=true&minAts=${stats.matchThreshold || 70}`}
+                  className="rounded-full bg-emerald-100 hover:bg-emerald-200 transition-colors px-2 py-0.5 text-[11px] font-bold text-emerald-800"
+                  title="Click to view matched jobs"
+                >
                   {stats.matchedJobs} of {stats.primaryResumeJobCount || 0} jobs matched
-                </span>
+                </Link>
               </div>
               <p className="truncate text-base font-bold text-slate-900 mt-0.5">
                 {stats.primaryResume.resumeName}
               </p>
               <p className="text-xs text-slate-500">
-                Matches calculated at ≥ {stats.matchThreshold || 70}% score · {formatNumber(stats.totalUniqueMatchedJobs || stats.totalJobs || 0)} total jobs across all resumes
+                Matches calculated at ≥ {stats.matchThreshold || 70}% score ·{' '}
+                <Link to="/jobs?primaryOnly=false" className="font-semibold text-blue-700 hover:underline">
+                  {formatNumber(stats.totalUniqueMatchedJobs || stats.totalJobs || 0)} total jobs across all resumes
+                </Link>
               </p>
             </div>
           </div>
@@ -159,7 +229,12 @@ export default function Dashboard() {
               </div>
             )}
             <Link to="/resumes" className="btn-secondary text-xs shrink-0">Manage Resumes</Link>
-            <Link to="/jobs" className="btn-primary text-xs shrink-0">View {stats.matchedJobs} Matched Jobs</Link>
+            <Link
+              to={`/jobs?primaryOnly=true&minAts=${stats.matchThreshold || 70}`}
+              className="btn-primary text-xs shrink-0"
+            >
+              View {stats.matchedJobs} Matched Jobs
+            </Link>
           </div>
         </div>
       )}
@@ -174,32 +249,69 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
         {statDefs(stats).map((s) => <StatCard key={s.label} {...s} />)}
       </div>
 
       {followUpsDue > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <BellRing className="h-5 w-5 text-amber-600" />
+          <BellRing className="h-5 w-5 text-amber-600 shrink-0" />
           <p className="flex-1 text-sm text-amber-800">
-            <b>{followUpsDue}</b> application{followUpsDue === 1 ? '' : 's'} need follow-up today. Overdue: <b>{stats.overdue || 0}</b>.
+            <Link to="/follow-ups?status=pending" className="font-bold underline hover:text-amber-950">
+              {followUpsDue}
+            </Link>{' '}
+            application{followUpsDue === 1 ? '' : 's'} need follow-up today. Overdue:{' '}
+            <Link to="/follow-ups?status=overdue" className="font-bold underline hover:text-red-800">
+              {stats.overdue || 0}
+            </Link>.
           </p>
-          <Link to="/follow-ups" className="btn-secondary text-xs">View follow-ups</Link>
+          <Link to="/follow-ups" className="btn-secondary text-xs shrink-0">View follow-ups</Link>
         </div>
       )}
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="Applications by month" subtitle="Submitted applications per month">
-          {monthlyData.length ? <BarChartWidget data={monthlyData} name="Applications" /> : <EmptyState title="No application data" />}
+        <Card title="Applications by month" subtitle="Submitted applications per month (click to view)">
+          {monthlyData.length ? (
+            <BarChartWidget
+              data={monthlyData}
+              name="Applications"
+              onBarClick={() => navigate('/applications')}
+            />
+          ) : <EmptyState title="No application data" />}
         </Card>
-        <Card title="Application status distribution">
-          {statusData.length ? <PieChartWidget data={statusData} /> : <EmptyState title="No status data" />}
+        <Card title="Application status distribution" subtitle="Click any segment to view applications">
+          {statusData.length ? (
+            <PieChartWidget
+              data={statusData}
+              onPieClick={(slice) => {
+                if (slice?.name) navigate(`/applications?status=${encodeURIComponent(slice.name)}`);
+              }}
+            />
+          ) : <EmptyState title="No status data" />}
         </Card>
-        <Card title="Jobs by company" subtitle="Discoveries & matches">
-          {companyData.length ? <BarChartWidget data={companyData} color="#10b981" /> : <EmptyState title="No company data" />}
+        <Card title="Jobs by company" subtitle="Discoveries & matches (click company to view jobs)">
+          {companyData.length ? (
+            <BarChartWidget
+              data={companyData}
+              color="#10b981"
+              onBarClick={(entry) => {
+                const comp = entry?.label || entry?._id;
+                if (comp) navigate(`/jobs?company=${encodeURIComponent(comp)}&primaryOnly=false`);
+              }}
+            />
+          ) : <EmptyState title="No company data" />}
         </Card>
-        <Card title="Top skills in job pool">
-          {skillsData.length ? <BarChartWidget data={skillsData} color="#8b5cf6" /> : <EmptyState title="No skill data" />}
+        <Card title="Top skills in job pool" subtitle="Click skill to search jobs">
+          {skillsData.length ? (
+            <BarChartWidget
+              data={skillsData}
+              color="#8b5cf6"
+              onBarClick={(entry) => {
+                const sk = entry?.label || entry?._id;
+                if (sk) navigate(`/jobs?search=${encodeURIComponent(sk)}&primaryOnly=false`);
+              }}
+            />
+          ) : <EmptyState title="No skill data" />}
         </Card>
       </div>
 

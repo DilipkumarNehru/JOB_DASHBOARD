@@ -15,22 +15,49 @@ const tooltipStyle = {
   boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
 };
 
-export const BarChartWidget = ({ data, dataKey = 'count', name = '', xKey = 'label', height = 260, color = '#3b66f6' }) => (
+export const BarChartWidget = ({ data, dataKey = 'count', name = '', xKey = 'label', height = 260, color = '#3b66f6', onBarClick }) => (
   <ResponsiveContainer width="100%" height={height}>
     <BarChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
       <XAxis dataKey={xKey} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
       <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
       <Tooltip contentStyle={tooltipStyle} formatter={(v, k) => [v, k === dataKey ? name : k]} />
-      <Bar dataKey={dataKey} name={name} fill={color} radius={[4, 4, 0, 0]} maxBarSize={40} />
+      <Bar
+        dataKey={dataKey}
+        name={name}
+        fill={color}
+        radius={[4, 4, 0, 0]}
+        maxBarSize={40}
+        cursor={onBarClick ? 'pointer' : 'default'}
+        onClick={(entry) => {
+          if (onBarClick) {
+            onBarClick(entry?.payload || entry);
+          }
+        }}
+      />
     </BarChart>
   </ResponsiveContainer>
 );
 
-export const PieChartWidget = ({ data, dataKey = 'value', nameKey = 'name', height = 260, colors = CHART_COLORS }) => (
+export const PieChartWidget = ({ data, dataKey = 'value', nameKey = 'name', height = 260, colors = CHART_COLORS, onPieClick }) => (
   <ResponsiveContainer width="100%" height={height}>
     <PieChart>
-      <Pie data={data} dataKey={dataKey} nameKey={nameKey} cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={2}>
+      <Pie
+        data={data}
+        dataKey={dataKey}
+        nameKey={nameKey}
+        cx="50%"
+        cy="50%"
+        innerRadius={50}
+        outerRadius={85}
+        paddingAngle={2}
+        cursor={onPieClick ? 'pointer' : 'default'}
+        onClick={(entry) => {
+          if (onPieClick) {
+            onPieClick(entry?.payload || entry);
+          }
+        }}
+      >
         {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
       </Pie>
       <Tooltip contentStyle={tooltipStyle} />

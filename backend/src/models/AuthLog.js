@@ -26,7 +26,6 @@ const AuthLogSchema = new mongoose.Schema({
   },
   action: {
     type: String,
-    enum: ['login', 'logout', 'failed_login', 'password_change', 'force_logout', 'heartbeat'],
     required: true,
     index: true,
   },
