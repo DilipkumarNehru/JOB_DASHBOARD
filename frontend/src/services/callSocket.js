@@ -38,7 +38,8 @@ export function getCallSocket() {
 
     socket = io(serverUrl, {
       path: '/socket.io',
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
+      upgrade: true,
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 15,
