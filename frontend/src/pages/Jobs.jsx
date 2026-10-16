@@ -108,6 +108,7 @@ export default function Jobs() {
       } else {
         // Show all jobs
         if (filters.match) queryParams.minMatch = filters.match;
+        if (filters.minAts) queryParams.minAts = filters.minAts;
       }
 
       const res = await jobService.getAll(queryParams);
@@ -228,24 +229,124 @@ export default function Jobs() {
 
       {/* Stats bar */}
       {jobStats && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <p className="text-xs text-slate-500">Total Jobs Found</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+          <div
+            onClick={() => {
+              updateParam('minAts', '');
+              updateParam('status', '');
+              setResumeFilter('all');
+            }}
+            className={`cursor-pointer rounded-xl border p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+              currentResumeFilter === 'all' && !filters.minAts && !filters.status
+                ? 'border-brand-500 bg-brand-50/30 ring-2 ring-brand-500/20'
+                : 'border-slate-200 bg-white hover:border-slate-300'
+            }`}
+            title="Click to view all jobs in the database"
+          >
+            <p className="text-xs font-semibold text-slate-500">Total Jobs Found</p>
             <p className="text-2xl font-black text-slate-900">{jobStats.totalUniqueMatchedJobs || jobStats.totalJobs || 0}</p>
             <p className="text-xs text-slate-400">across all resumes</p>
           </div>
-          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-            <p className="text-xs text-blue-600 font-medium">Primary Resume Jobs</p>
+
+          <div
+            onClick={() => {
+              updateParam('minAts', '');
+              updateParam('status', '');
+              setResumeFilter('primary');
+            }}
+            className={`cursor-pointer rounded-xl border p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+              currentResumeFilter === 'primary' && !filters.minAts && !filters.status
+                ? 'border-blue-500 bg-blue-50/70 ring-2 ring-blue-500/20'
+                : 'border-blue-200 bg-blue-50/40 hover:border-blue-300'
+            }`}
+            title="Click to view all primary resume jobs"
+          >
+            <p className="text-xs font-semibold text-blue-600">Primary Resume Jobs</p>
             <p className="text-2xl font-black text-blue-700">{jobStats.primaryResumeJobCount || 0}</p>
             <p className="text-xs text-blue-500 truncate">{jobStats.primaryResume?.resumeName || '—'}</p>
           </div>
-          {(jobStats.perResume || []).slice(0, 2).map(r => (
-            <div key={r.resumeId} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs text-slate-500 truncate">{r.resumeName}</p>
+
+          <div
+            onClick={() => {
+              updateParam('minAts', '70');
+              updateParam('status', '');
+              setResumeFilter('primary');
+            }}
+            className={`cursor-pointer rounded-xl border p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+              filters.minAts === '70'
+                ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20'
+                : 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300'
+            }`}
+            title="Click to filter matched jobs (ATS ≥ 70%)"
+          >
+            <p className="text-xs font-semibold text-emerald-700">Matched Jobs (≥ 70%)</p>
+            <p className="text-2xl font-black text-emerald-700">{jobStats.matchedJobsCount ?? 0}</p>
+            <p className="text-xs text-emerald-600">ATS match score</p>
+          </div>
+
+          <div
+            onClick={() => {
+              updateParam('status', 'new');
+              updateParam('minAts', '');
+              setResumeFilter('all');
+            }}
+            className={`cursor-pointer rounded-xl border p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+              filters.status === 'new'
+                ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20'
+                : 'border-sky-200 bg-sky-50/40 hover:border-sky-300'
+            }`}
+            title="Click to view new jobs"
+          >
+            <p className="text-xs font-semibold text-sky-700">New Jobs</p>
+            <p className="text-2xl font-black text-sky-800">{jobStats.newJobs ?? 0}</p>
+            <p className="text-xs text-sky-600">newly discovered</p>
+          </div>
+
+          {(jobStats.perResume || []).slice(0, 1).map(r => (
+            <div
+              key={r.resumeId}
+              onClick={() => {
+                updateParam('minAts', '');
+                updateParam('status', '');
+                setResumeFilter(r.resumeId);
+              }}
+              className={`cursor-pointer rounded-xl border p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                currentResumeFilter === r.resumeId
+                  ? 'border-indigo-500 bg-indigo-50/70 ring-2 ring-indigo-500/20'
+                  : 'border-slate-200 bg-white hover:border-slate-300'
+              }`}
+              title={`Click to filter jobs for ${r.resumeName}`}
+            >
+              <p className="text-xs font-semibold text-slate-500 truncate">{r.resumeName}</p>
               <p className="text-2xl font-black text-slate-900">{r.jobCount}</p>
-              <p className="text-xs text-slate-400">{r.profile || 'jobs matched'}</p>
+              <p className="text-xs text-slate-400">{r.matchedCount ?? 0} matched (≥ 70%)</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Active Filter Banner when Matched Jobs or New is selected */}
+      {(filters.minAts || filters.status) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-xs text-emerald-800">
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>
+              Active Filter:{' '}
+              {filters.minAts && <strong>ATS Score ≥ {filters.minAts}%</strong>}
+              {filters.minAts && filters.status && ' · '}
+              {filters.status && <strong>Status: {filters.status}</strong>}
+              {' '}— showing {total} {total === 1 ? 'job' : 'jobs'}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              updateParam('minAts', '');
+              updateParam('status', '');
+            }}
+            className="flex items-center gap-1 font-bold text-red-600 hover:text-red-700 bg-white px-2 py-1 rounded-lg border border-red-200 shadow-xs"
+          >
+            <X className="h-3 w-3" /> Clear this filter
+          </button>
         </div>
       )}
 

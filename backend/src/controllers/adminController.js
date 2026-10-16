@@ -410,17 +410,22 @@ export const deleteUser = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-/* ─── 7. Get Login & Logout Logs (Filterable, Paginated) ───────────── */
+/* ─── 7. Get Login & User Activity Logs (Filterable, Paginated) ────── */
 export const getAuthLogs = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
-    const action = req.query.action; // 'login' | 'logout' | 'failed_login' | 'all'
-    const status = req.query.status; // 'success' | 'failed' | 'all'
-    const isLive = req.query.isLive; // 'true' | 'false' | 'all'
+    const action = req.query.action;
+    const status = req.query.status;
+    const isLive = req.query.isLive;
+    const userId = req.query.userId;
     const search = (req.query.search || '').trim();
 
     const filter = {};
+
+    if (userId) {
+      filter.userId = userId;
+    }
 
     if (action && action !== 'all') {
       filter.action = action;
@@ -442,6 +447,7 @@ export const getAuthLogs = async (req, res, next) => {
         { name: { $regex: search, $options: 'i' } },
         { ipAddress: { $regex: search, $options: 'i' } },
         { browser: { $regex: search, $options: 'i' } },
+        { action: { $regex: search, $options: 'i' } },
       ];
     }
 
@@ -534,6 +540,126 @@ export const forceLogoutUser = async (req, res, next) => {
     res.json({
       success: true,
       message: `User "${user.name}" (${user.email}) has been force logged out.`,
+    });
+  } catch (err) { next(err); }
+};
+
+/* ─── 10. Get All Applications (Across all users) ─────────────────────── */
+export const getAllApplications = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = (req.query.search || '').trim();
+    const status = req.query.status;
+    const userId = req.query.userId;
+
+    const filter = {};
+    if (userId) filter.userId = userId;
+
+    if (status && status !== 'all') {
+      if (status.includes(',')) {
+        filter.status = { $in: status.split(',').map(s => s.trim()) };
+      } else {
+        filter.status = status;
+      }
+    }
+
+    if (search) {
+      const matchingUsers = await User.find({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } }
+        ]
+      }).select('_id');
+      const userMatchIds = matchingUsers.map(u => u._id);
+
+      filter.$or = [
+        { company: { $regex: search, $options: 'i' } },
+        { role: { $regex: search, $options: 'i' } },
+        { location: { $regex: search, $options: 'i' } },
+        { notes: { $regex: search, $options: 'i' } },
+        ...(userMatchIds.length > 0 ? [{ userId: { $in: userMatchIds } }] : [])
+      ];
+    }
+
+    const total = await Application.countDocuments(filter);
+    const applications = await Application.find(filter)
+      .populate('userId', 'name email role title')
+      .populate('jobId', 'jobTitle companyName location jobType salary url')
+      .sort({ updatedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    // Also calculate status counts
+    const statusCountsAgg = await Application.aggregate([
+      ...(userId ? [{ $match: { userId: new mongoose.Types.ObjectId(userId) } }] : []),
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    const statusCounts = statusCountsAgg.reduce((acc, curr) => {
+      acc[curr._id] = curr.count;
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      applications,
+      statusCounts,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) { next(err); }
+};
+
+/* ─── 11. Get All Resumes (Across all users) ─────────────────────────── */
+export const getAllResumes = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = (req.query.search || '').trim();
+    const userId = req.query.userId;
+
+    const filter = {};
+    if (userId) filter.userId = userId;
+
+    if (search) {
+      const matchingUsers = await User.find({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } }
+        ]
+      }).select('_id');
+      const userMatchIds = matchingUsers.map(u => u._id);
+
+      filter.$or = [
+        { resumeName: { $regex: search, $options: 'i' } },
+        { originalFileName: { $regex: search, $options: 'i' } },
+        { 'parsedProfile.name': { $regex: search, $options: 'i' } },
+        { 'parsedProfile.skills': { $regex: search, $options: 'i' } },
+        ...(userMatchIds.length > 0 ? [{ userId: { $in: userMatchIds } }] : [])
+      ];
+    }
+
+    const total = await Resume.countDocuments(filter);
+    const resumes = await Resume.find(filter)
+      .select('-rawText')
+      .populate('userId', 'name email role title')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.json({
+      success: true,
+      resumes,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
     });
   } catch (err) { next(err); }
 };

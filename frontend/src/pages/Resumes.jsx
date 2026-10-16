@@ -5,7 +5,7 @@ import DOMPurify from 'dompurify';
 import {
   Upload, FileText, Sparkles, Download, Trash2,
   Star, Eye, ChevronRight, RefreshCw,
-  Info, Pencil, BarChart3, X, FileCheck, Clock, Crown, Edit3, Check, FileType
+  Info, Pencil, BarChart3, X, FileCheck, Clock, Crown, Edit3, Check, FileType, Briefcase
 } from 'lucide-react';
 import { resumeService } from '../services';
 import { EmptyState, ErrorState } from '../components/common/Feedbacks.jsx';
@@ -958,6 +958,11 @@ function ResumeCard({ resume, onDelete, onAnalyze, analyzingId, onAts, onPreview
           className="flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100 transition-colors">
           <Pencil className="h-3.5 w-3.5" /> Edit
         </Link>
+        <Link to={`/jobs?resumeId=${resume._id}`}
+          className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors shadow-xs"
+          title="View matching jobs for this resume">
+          <Briefcase className="h-3.5 w-3.5" /> Matching Jobs ↗
+        </Link>
         <button onClick={() => onAnalyze(resume._id)} disabled={analyzingId === resume._id}
           className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50">
           {analyzingId === resume._id
@@ -1150,10 +1155,14 @@ export default function Resumes() {
               {resumes.length} resume{resumes.length > 1 ? 's' : ''}
             </div>
             {primary && (
-              <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm">
+              <Link
+                to="/jobs?primaryOnly=true"
+                className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm"
+                title="Click to view primary resume matched jobs"
+              >
                 <Crown className="h-3.5 w-3.5" />
-                Primary: {primary.resumeName || primary.originalFileName}
-              </div>
+                Primary: {primary.resumeName || primary.originalFileName} ↗
+              </Link>
             )}
             {avgScore !== null && (
               <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-sm ${scoreColor(avgScore).bg} ${scoreColor(avgScore).text}`}>

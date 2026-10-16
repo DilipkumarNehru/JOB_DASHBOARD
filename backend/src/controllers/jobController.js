@@ -146,7 +146,8 @@ export const getJobs = async (req, res, next) => {
     if (source) filter.source = source;
     if (role) filter.jobTitle = new RegExp(role, 'i');
     if (company) filter.companyName = new RegExp(company, 'i');
-    if (minMatch) filter.matchScore = { $gte: parseInt(minMatch) };
+    const minScore = minAts || minMatch;
+    if (minScore) filter.matchScore = { $gte: parseInt(minScore) };
     if (search) filter.$text = { $search: search };
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -508,33 +509,46 @@ export const getJobStats = async (req, res, next) => {
     const totalUniqueJobs = allMatchedJobIds.length;
 
     // Total jobs in collection
-    const totalJobs = await Job.countDocuments({});
+    const [totalJobs, newJobs] = await Promise.all([
+      Job.countDocuments({}),
+      Job.countDocuments({ status: 'new' })
+    ]);
 
     // Primary resume job count
     let primaryResumeJobCount = 0;
+    let matchedJobsCount = 0;
     if (primary) {
-      primaryResumeJobCount = await JobMatch.countDocuments({
-        userId: req.user.id,
-        resumeId: primary._id
-      });
+      [primaryResumeJobCount, matchedJobsCount] = await Promise.all([
+        JobMatch.countDocuments({ userId: req.user.id, resumeId: primary._id }),
+        JobMatch.countDocuments({ userId: req.user.id, resumeId: primary._id, overallMatch: { $gte: 70 } })
+      ]);
     }
 
     // Per-resume counts
-    const perResume = await Promise.all(resumes.map(async (r) => ({
-      resumeId: r._id,
-      resumeName: getResumeDisplayName(r),
-      isPrimary: r.isPrimary,
-      profile: r.parsedProfile?.profile,
-      jobCount: await JobMatch.countDocuments({ userId: req.user.id, resumeId: r._id })
-    })));
+    const perResume = await Promise.all(resumes.map(async (r) => {
+      const [jobCount, matchedCount] = await Promise.all([
+        JobMatch.countDocuments({ userId: req.user.id, resumeId: r._id }),
+        JobMatch.countDocuments({ userId: req.user.id, resumeId: r._id, overallMatch: { $gte: 70 } })
+      ]);
+      return {
+        resumeId: r._id,
+        resumeName: getResumeDisplayName(r),
+        isPrimary: r.isPrimary,
+        profile: r.parsedProfile?.profile,
+        jobCount,
+        matchedCount
+      };
+    }));
 
     res.json({
       success: true,
       stats: {
         totalResumes: resumes.length,
         totalJobs,
+        newJobs,
         totalUniqueJobs,
         primaryResumeJobCount,
+        matchedJobsCount,
         primaryResume: primary ? {
           _id: primary._id,
           resumeName: getResumeDisplayName(primary),

@@ -142,6 +142,9 @@ export const adminService = {
   forceLogout: (id) => api.post(`/admin/users/${id}/force-logout`),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   getLogs: (params) => api.get('/admin/logs', { params }),
+  getActivity: (params) => api.get('/admin/activity', { params }),
+  getApplications: (params) => api.get('/admin/applications', { params }),
+  getResumes: (params) => api.get('/admin/resumes', { params }),
 };
 
 export const practiceService = {

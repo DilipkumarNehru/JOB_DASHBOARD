@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   TrendingUp, Target, Gift, XCircle, FileText, BellRing, Mail, Send
 } from 'lucide-react';
@@ -13,6 +13,7 @@ import { EMAIL_CATEGORIES } from '../utils/constants.js';
 const emailColor = (key) => EMAIL_CATEGORIES.find((c) => c.key === key)?.color || 'bg-slate-100 text-slate-600';
 
 export default function Analytics() {
+  const navigate = useNavigate();
   const apps = useFetch(analyticsService.applications);
   const jobs = useFetch(analyticsService.jobs);
   const skills = useFetch(analyticsService.skills);
@@ -44,11 +45,11 @@ export default function Analytics() {
   });
 
   const perfCards = [
-    { label: 'Applications Sent', value: formatNumber(a.applied), icon: Send },
-    { label: 'Response Rate', value: `${a.responseRate ?? 0}%`, icon: TrendingUp, color: 'bg-blue-50 text-blue-600' },
-    { label: 'Interview Conversion', value: `${a.interviewConversionRate ?? 0}%`, icon: Target, color: 'bg-violet-50 text-violet-600' },
-    { label: 'Offer Rate', value: `${a.offerRate ?? 0}%`, icon: Gift, color: 'bg-lime-50 text-lime-600' },
-    { label: 'Rejection Rate', value: `${a.rejectionRate ?? 0}%`, icon: XCircle, color: 'bg-red-50 text-red-600' },
+    { label: 'Applications Sent', value: formatNumber(a.applied), icon: Send, to: '/applications' },
+    { label: 'Response Rate', value: `${a.responseRate ?? 0}%`, icon: TrendingUp, color: 'bg-blue-50 text-blue-600', to: '/applications' },
+    { label: 'Interview Conversion', value: `${a.interviewConversionRate ?? 0}%`, icon: Target, color: 'bg-violet-50 text-violet-600', to: '/applications?status=Interview' },
+    { label: 'Offer Rate', value: `${a.offerRate ?? 0}%`, icon: Gift, color: 'bg-lime-50 text-lime-600', to: '/applications?status=Offer' },
+    { label: 'Rejection Rate', value: `${a.rejectionRate ?? 0}%`, icon: XCircle, color: 'bg-red-50 text-red-600', to: '/applications?status=Rejected' },
   ];
 
   return (
@@ -63,26 +64,73 @@ export default function Analytics() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="Applications per month" subtitle="Track your application momentum">
-          {monthlyData.length ? <BarChartWidget data={monthlyData} name="Applications" /> : <EmptyState title="No application data" />}
+        <Card title="Applications per month" subtitle="Track your application momentum (click to view)">
+          {monthlyData.length ? (
+            <BarChartWidget
+              data={monthlyData}
+              name="Applications"
+              onBarClick={() => navigate('/applications')}
+            />
+          ) : <EmptyState title="No application data" />}
         </Card>
-        <Card title="Pipeline status distribution">
-          {statusData.length ? <PieChartWidget data={statusData} /> : <EmptyState title="No status data yet" />}
+        <Card title="Pipeline status distribution" subtitle="Click segment to view applications">
+          {statusData.length ? (
+            <PieChartWidget
+              data={statusData}
+              onPieClick={(slice) => {
+                if (slice?.name) navigate(`/applications?status=${encodeURIComponent(slice.name)}`);
+              }}
+            />
+          ) : <EmptyState title="No status data yet" />}
         </Card>
-        <Card title="Top companies in your pool" subtitle="Where the jobs are & average match">
-          {topCompanies.length ? <BarChartWidget data={topCompanies} color="#10b981" /> : <EmptyState title="No company data" />}
+        <Card title="Top companies in your pool" subtitle="Where the jobs are (click company to view jobs)">
+          {topCompanies.length ? (
+            <BarChartWidget
+              data={topCompanies}
+              color="#10b981"
+              onBarClick={(entry) => {
+                const comp = entry?.label || entry?._id;
+                if (comp) navigate(`/jobs?company=${encodeURIComponent(comp)}&primaryOnly=false`);
+              }}
+            />
+          ) : <EmptyState title="No company data" />}
         </Card>
-        <Card title="Top roles in your pool">
-          {topRoles.length ? <BarChartWidget data={topRoles} color="#06b6d4" /> : <EmptyState title="No role data" />}
+        <Card title="Top roles in your pool" subtitle="Click role to view jobs">
+          {topRoles.length ? (
+            <BarChartWidget
+              data={topRoles}
+              color="#06b6d4"
+              onBarClick={(entry) => {
+                const role = entry?.label || entry?._id;
+                if (role) navigate(`/jobs?role=${encodeURIComponent(role)}&primaryOnly=false`);
+              }}
+            />
+          ) : <EmptyState title="No role data" />}
         </Card>
-        <Card title="Most requested skills" subtitle="Across discovered jobs (count)">
-          {skillsData.length ? <BarChartWidget data={skillsData} color="#8b5cf6" /> : <EmptyState title="No skill data" />}
+        <Card title="Most requested skills" subtitle="Across discovered jobs (click to search jobs)">
+          {skillsData.length ? (
+            <BarChartWidget
+              data={skillsData}
+              color="#8b5cf6"
+              onBarClick={(entry) => {
+                const skName = entry?.label || entry?._id;
+                if (skName) navigate(`/jobs?search=${encodeURIComponent(skName)}&primaryOnly=false`);
+              }}
+            />
+          ) : <EmptyState title="No skill data" />}
         </Card>
-        <Card title="Skills you're missing" subtitle="High-demand skills absent from your resume">
+        <Card title="Skills you're missing" subtitle="High-demand skills absent from your resume (click to search)">
           {(ins.missingFromProfile || []).length ? (
             <div className="flex flex-wrap gap-2">
               {(ins.missingFromProfile || []).map((s) => (
-                <span key={s} className="badge bg-red-100 text-red-700">{s}</span>
+                <Link
+                  key={s}
+                  to={`/jobs?search=${encodeURIComponent(s)}&primaryOnly=false`}
+                  className="badge bg-red-100 text-red-700 hover:bg-red-200 transition-colors cursor-pointer"
+                  title={`Find jobs requiring ${s}`}
+                >
+                  {s} ↗
+                </Link>
               ))}
             </div>
           ) : <EmptyState icon="✅" title="Nothing missing" description="Your profile covers every in-demand skill found in your job pool." />}

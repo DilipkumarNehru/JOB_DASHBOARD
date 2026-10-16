@@ -9,6 +9,8 @@ import {
   getAuthLogs,
   getLiveUsers,
   forceLogoutUser,
+  getAllApplications,
+  getAllResumes,
 } from '../controllers/adminController.js';
 import { protect, adminOnly } from '../middleware/auth.js';
 
@@ -21,8 +23,13 @@ router.use(protect, adminOnly);
 router.get('/stats', getAdminStats);
 router.get('/live-users', getLiveUsers);
 
-// Logs
+// Logs & Activities
 router.get('/logs', getAuthLogs);
+router.get('/activity', getAuthLogs);
+
+// Cross-user Applications & Resumes
+router.get('/applications', getAllApplications);
+router.get('/resumes', getAllResumes);
 
 // User management
 router.get('/users', getAllUsers);

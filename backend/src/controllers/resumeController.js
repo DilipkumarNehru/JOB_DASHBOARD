@@ -9,6 +9,7 @@ import { customizeResume } from '../services/resumeCustomizationService.js';
 import { buildPdfFromProfile, buildPdfFromCustomized, buildDocxFromProfile } from '../services/resumeVersionService.js';
 import { detectResumeDomain } from '../services/matchingEngineService.js';
 import Job from '../models/Job.js';
+import AuthLog from '../models/AuthLog.js';
 import { storeFile } from '../services/gridFsService.js';
 
 export const computeAts = (p = {}) => {
@@ -90,6 +91,22 @@ export const uploadResume = async (req, res, next) => {
       analyzedAt: new Date(),
     });
 
+    // Track user activity
+    AuthLog.create({
+      userId: req.user.id,
+      email: req.user.email,
+      name: req.user.name,
+      role: req.user.role,
+      action: 'resume_upload',
+      status: 'success',
+      details: {
+        resumeId: resume._id,
+        resumeName,
+        fileName: req.file.originalname,
+        atsScore: calculatedAts,
+      }
+    }).catch(() => {});
+
     res.status(201).json({ success: true, resume });
   } catch (err) { next(err); }
 };
@@ -111,7 +128,8 @@ export const getPrimaryResume = async (req, res, next) => {
 
 export const getResume = async (req, res, next) => {
   try {
-    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+    const filter = req.user.role === 'admin' ? { _id: req.params.id } : { _id: req.params.id, userId: req.user.id };
+    const resume = await Resume.findOne(filter);
     if (!resume) return res.status(404).json({ success: false, message: 'Resume not found' });
     res.json({ success: true, resume });
   } catch (err) { next(err); }
@@ -211,6 +229,20 @@ export const deleteResume = async (req, res, next) => {
     const { default: JobMatch } = await import('../models/JobMatch.js');
     await JobMatch.deleteMany({ userId: req.user.id, resumeId: resume._id });
 
+    // Track user activity
+    AuthLog.create({
+      userId: req.user.id,
+      email: req.user.email,
+      name: req.user.name,
+      role: req.user.role,
+      action: 'resume_delete',
+      status: 'success',
+      details: {
+        resumeId: resume._id,
+        resumeName: resume.resumeName || resume.originalFileName,
+      }
+    }).catch(() => {});
+
     res.json({ success: true, message: 'Resume deleted' });
   } catch (err) { next(err); }
 };
@@ -297,7 +329,8 @@ export const customizeResumeForJob = async (req, res, next) => {
 
 export const getAtsScore = async (req, res, next) => {
   try {
-    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+    const filter = req.user.role === 'admin' ? { _id: req.params.id } : { _id: req.params.id, userId: req.user.id };
+    const resume = await Resume.findOne(filter);
     if (!resume) return res.status(404).json({ success: false, message: 'Resume not found' });
 
     const p = resume.parsedProfile || {};
@@ -383,7 +416,8 @@ Profile summary:
 
 export const downloadResumePdf = async (req, res, next) => {
   try {
-    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+    const filter = req.user.role === 'admin' ? { _id: req.params.id } : { _id: req.params.id, userId: req.user.id };
+    const resume = await Resume.findOne(filter);
     if (!resume) return res.status(404).json({ success: false, message: 'Resume not found' });
     const result = await buildPdfFromProfile(resume.parsedProfile || {}, resume.parsedProfile?.name || 'resume', resume.rawText || '');
     const pdfPath = result.filePath || result;
@@ -394,7 +428,8 @@ export const downloadResumePdf = async (req, res, next) => {
 
 export const downloadResumeDocx = async (req, res, next) => {
   try {
-    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+    const filter = req.user.role === 'admin' ? { _id: req.params.id } : { _id: req.params.id, userId: req.user.id };
+    const resume = await Resume.findOne(filter);
     if (!resume) return res.status(404).json({ success: false, message: 'Resume not found' });
     const baseName = (resume.resumeName || resume.originalFileName || resume.originalName || 'resume').replace(/\.(pdf|docx|doc|txt|rtf)$/i, '');
     const { filePath } = await buildDocxFromProfile(resume.parsedProfile || {}, resume.rawText || '', baseName);
@@ -598,7 +633,8 @@ export const convertAndSavePdf = async (req, res, next) => {
  */
 export const previewResumeHtml = async (req, res, next) => {
   try {
-    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+    const filter = req.user.role === 'admin' ? { _id: req.params.id } : { _id: req.params.id, userId: req.user.id };
+    const resume = await Resume.findOne(filter);
     if (!resume) return res.status(404).json({ success: false, message: 'Resume not found' });
 
     let html = '';
@@ -679,7 +715,8 @@ export const previewResumeHtml = async (req, res, next) => {
 // Serve the original uploaded file (GridFS with fallback to disk)
 export const serveResumeFile = async (req, res, next) => {
   try {
-    const resume = await Resume.findOne({ _id: req.params.id, userId: req.user.id });
+    const filter = req.user.role === 'admin' ? { _id: req.params.id } : { _id: req.params.id, userId: req.user.id };
+    const resume = await Resume.findOne(filter);
     if (!resume) return res.status(404).json({ success: false, message: 'Resume not found' });
 
     const fileName = resume.originalFileName || resume.originalName || 'resume';
