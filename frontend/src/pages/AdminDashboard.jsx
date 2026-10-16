@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -7,16 +7,51 @@ import {
   Filter, RefreshCw, Trash2, Edit3, AlertTriangle, CheckCircle2,
   XCircle, Smartphone, Monitor, Globe, FileText, Sparkles, Copy,
   Check, X, ChevronLeft, ChevronRight, Crown, Laptop, Info,
-<<<<<<< HEAD
-  ExternalLink, Calendar, Building2, Briefcase, Mail, Download, Award
-=======
   ExternalLink, Calendar, Building2, Briefcase, Mail, MapPin, DollarSign
->>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
 } from 'lucide-react';
 import { adminService } from '../services';
 import api from '../services/api.js';
 import { formatDate } from '../utils/format.js';
 import { useAuth } from '../context/AuthContext.jsx';
+
+/* ─── Admin Tab Error Boundary ───────────────────────────────────── */
+class AdminTabErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error(`[AdminDashboard] Error in ${this.props.tabName || 'section'}:`, error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-rose-800 my-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-5 w-5 text-rose-600" />
+            <h3 className="font-bold text-base">Error rendering {this.props.tabName || 'tab'}</h3>
+          </div>
+          <p className="text-xs text-rose-600 font-mono mb-4 bg-white/70 p-3 rounded-lg border border-rose-200">
+            {this.state.error?.message || 'Unknown render error occurred'}
+          </p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              if (this.props.onRetry) this.props.onRetry();
+            }}
+            className="rounded-xl bg-rose-600 text-white px-4 py-2 text-xs font-bold hover:bg-rose-700 shadow-sm transition-all"
+          >
+            Retry Tab
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ─── Helper: Format date/time ───────────────────────────────────── */
 const formatFullDateTime = (dateStr) => {
@@ -523,41 +558,36 @@ function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpe
         <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-2 bg-slate-50/70 overflow-x-auto">
           <button
             onClick={() => setModalTab('overview')}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${
-              modalTab === 'overview' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${modalTab === 'overview' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+              }`}
           >
             Overview &amp; Credentials
           </button>
           <button
             onClick={() => setModalTab('resumes')}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${
-              modalTab === 'resumes' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${modalTab === 'resumes' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+              }`}
           >
             Resumes ({resumes.length})
           </button>
           <button
             onClick={() => setModalTab('matches')}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${
-              modalTab === 'matches' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${modalTab === 'matches' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+              }`}
           >
             Matched Jobs ({metrics.totalJobMatches || 0})
           </button>
           <button
             onClick={() => setModalTab('applications')}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${
-              modalTab === 'applications' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${modalTab === 'applications' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+              }`}
           >
             Applications ({applications.length})
           </button>
           <button
             onClick={() => setModalTab('logs')}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${
-              modalTab === 'logs' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap ${modalTab === 'logs' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+              }`}
           >
             Login / Logout Logs ({recentLogs.length})
           </button>
@@ -863,9 +893,8 @@ function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpe
                         return (
                           <div
                             key={r._id}
-                            className={`rounded-xl border p-4 transition-all ${
-                              r.isPrimary ? 'border-blue-300 bg-blue-50/30 ring-1 ring-blue-300' : 'border-slate-200 bg-white'
-                            }`}
+                            className={`rounded-xl border p-4 transition-all ${r.isPrimary ? 'border-blue-300 bg-blue-50/30 ring-1 ring-blue-300' : 'border-slate-200 bg-white'
+                              }`}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex items-center gap-3">
@@ -990,9 +1019,8 @@ function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpe
                               </div>
 
                               <div className="flex flex-col items-end gap-1.5 shrink-0">
-                                <span className={`rounded-xl px-2.5 py-1 text-xs font-black shadow-xs ${
-                                  score >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
-                                }`}>
+                                <span className={`rounded-xl px-2.5 py-1 text-xs font-black shadow-xs ${score >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  }`}>
                                   {score}% Match
                                 </span>
                                 {applyUrl && (
@@ -1038,27 +1066,34 @@ function UserInfoModal({ user: initialUser, onClose, onOpenChangePassword, onOpe
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {applications.map((app) => (
-                            <tr key={app._id} className="hover:bg-slate-50/60">
-                              <td className="px-4 py-2.5 font-bold text-slate-800">
-                                {app.role || app.jobTitle || app.jobId?.jobTitle || 'Role'}
-                              </td>
-                              <td className="px-4 py-2.5 text-slate-600 font-medium">
-                                {app.company || app.companyName || app.jobId?.companyName || '—'}
-                              </td>
-                              <td className="px-4 py-2.5">
-                                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
-                                  (app.status || '').toLowerCase().includes('offer') ? 'bg-emerald-100 text-emerald-800' :
-                                  (app.status || '').toLowerCase().includes('interview') ? 'bg-purple-100 text-purple-800' :
-                                  (app.status || '').toLowerCase().includes('reject') ? 'bg-rose-100 text-rose-800' :
-                                  'bg-blue-50 text-blue-700 border border-blue-200'
-                                }`}>
-                                  {app.status || 'applied'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5 text-slate-500">{formatDate(app.createdAt)}</td>
-                            </tr>
-                          ))}
+                          {(applications || []).map((app) => {
+                            if (!app) return null;
+                            const job = (typeof app.jobId === 'object' && app.jobId !== null) ? app.jobId : {};
+                            const roleName = app.role || app.jobTitle || job?.jobTitle || 'Role';
+                            const compName = app.company || app.companyName || job?.companyName || '—';
+                            const statusStr = String(app.status || 'applied');
+                            const statusLower = statusStr.toLowerCase();
+                            return (
+                              <tr key={app._id || Math.random()} className="hover:bg-slate-50/60">
+                                <td className="px-4 py-2.5 font-bold text-slate-800">
+                                  {roleName}
+                                </td>
+                                <td className="px-4 py-2.5 text-slate-600 font-medium">
+                                  {compName}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${statusLower.includes('offer') ? 'bg-emerald-100 text-emerald-800' :
+                                    statusLower.includes('interview') ? 'bg-purple-100 text-purple-800' :
+                                      statusLower.includes('reject') ? 'bg-rose-100 text-rose-800' :
+                                        'bg-blue-50 text-blue-700 border border-blue-200'
+                                    }`}>
+                                    {statusStr}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 text-slate-500">{formatDate(app.applicationDate || app.createdAt)}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1282,41 +1317,36 @@ function AdminResumePreviewModal({ resumeId, resumeData, onClose }) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveView('doc')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                activeView === 'doc' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
-              }`}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${activeView === 'doc' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+                }`}
             >
               Document Preview
             </button>
             <button
               onClick={() => setActiveView('ats')}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                activeView === 'ats' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
-              }`}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${activeView === 'ats' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+                }`}
             >
               <span>ATS Quality &amp; Score</span>
               {atsScore !== null && (
-                <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
-                  activeView === 'ats' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                }`}>
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${activeView === 'ats' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                  }`}>
                   {atsScore}
                 </span>
               )}
             </button>
             <button
               onClick={() => setActiveView('parsed')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                activeView === 'parsed' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
-              }`}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${activeView === 'parsed' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+                }`}
             >
               Extracted Profile &amp; Skills
             </button>
             {resume?.rawText && (
               <button
                 onClick={() => setActiveView('raw')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  activeView === 'raw' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
-                }`}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${activeView === 'raw' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'
+                  }`}
               >
                 Raw Text
               </button>
@@ -1326,11 +1356,10 @@ function AdminResumePreviewModal({ resumeId, resumeData, onClose }) {
           {atsScore !== null && (
             <div className="hidden sm:flex items-center gap-2 text-xs">
               <span className="text-slate-400">ATS Quality Score:</span>
-              <span className={`font-black px-2.5 py-0.5 rounded-lg text-xs ${
-                atsScore >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+              <span className={`font-black px-2.5 py-0.5 rounded-lg text-xs ${atsScore >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                 atsScore >= 50 ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                'bg-amber-50 text-amber-700 border border-amber-200'
-              }`}>
+                  'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}>
                 {atsScore} / 100
               </span>
             </div>
@@ -1400,10 +1429,9 @@ function AdminResumePreviewModal({ resumeId, resumeData, onClose }) {
                             </div>
                             <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
                               <div
-                                className={`h-full rounded-full ${
-                                  (cat.score / cat.max) >= 0.8 ? 'bg-emerald-500' :
+                                className={`h-full rounded-full ${(cat.score / cat.max) >= 0.8 ? 'bg-emerald-500' :
                                   (cat.score / cat.max) >= 0.5 ? 'bg-blue-500' : 'bg-amber-500'
-                                }`}
+                                  }`}
                                 style={{ width: `${Math.round((cat.score / cat.max) * 100)}%` }}
                               />
                             </div>
@@ -1677,7 +1705,6 @@ export default function AdminDashboard() {
     }
   }, [logPage, logSearch, logActionFilter, logStatusFilter, logLiveOnly]);
 
-<<<<<<< HEAD
   /* ─── Fetch Applications (Cross-user) ─────────────────────────── */
   const fetchApplications = useCallback(async () => {
     setAppsLoading(true);
@@ -1686,13 +1713,14 @@ export default function AdminDashboard() {
         page: appPage,
         limit: 15,
         search: appSearch,
-        status: appStatusFilter !== 'all' ? appStatusFilter : undefined,
+        status: (appStatusFilter && appStatusFilter !== 'all') ? appStatusFilter : undefined,
       });
-      setApps(res.applications || []);
-      setAppStatusCounts(res.statusCounts || {});
-      setAppPagination(res.pagination || { page: 1, limit: 15, total: 0, totalPages: 1 });
+      setApps(Array.isArray(res?.applications) ? res.applications : []);
+      setAppStatusCounts(res?.statusCounts || {});
+      setAppPagination(res?.pagination || { page: 1, limit: 15, total: 0, totalPages: 1 });
     } catch (err) {
-      toast.error(err.message || 'Failed to load applications');
+      console.error('Failed to load applications:', err);
+      toast.error(err?.message || 'Failed to load applications');
     } finally {
       setAppsLoading(false);
     }
@@ -1715,7 +1743,7 @@ export default function AdminDashboard() {
       setResumesListLoading(false);
     }
   }, [resumePage, resumeSearch]);
-=======
+
   /* ─── Fetch Admin Jobs ─────────────────────────────────────────── */
   const fetchAdminJobs = useCallback(async () => {
     setAdminJobsLoading(true);
@@ -1736,7 +1764,6 @@ export default function AdminDashboard() {
       setAdminJobsLoading(false);
     }
   }, [adminJobPage, jobSearch, jobStatusFilter, jobSourceFilter, jobSortBy]);
->>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
 
   // Initial load
   useEffect(() => {
@@ -1752,7 +1779,6 @@ export default function AdminDashboard() {
   }, [activeTab, fetchLogs]);
 
   useEffect(() => {
-<<<<<<< HEAD
     if (activeTab === 'applications') fetchApplications();
   }, [activeTab, fetchApplications]);
 
@@ -1760,31 +1786,21 @@ export default function AdminDashboard() {
     if (activeTab === 'resumes') fetchResumesList();
   }, [activeTab, fetchResumesList]);
 
-  // Auto-refresh interval (every 12 seconds for stats and active tab)
-=======
+  useEffect(() => {
     if (activeTab === 'jobs') fetchAdminJobs();
   }, [activeTab, fetchAdminJobs]);
-
-  // Auto-refresh interval (every 12 seconds for stats and live monitor)
->>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
   useEffect(() => {
     if (!autoRefresh) return;
     refreshTimerRef.current = setInterval(() => {
       fetchStats();
       if (activeTab === 'users') fetchUsers();
       if (activeTab === 'logs') fetchLogs();
-<<<<<<< HEAD
       if (activeTab === 'applications') fetchApplications();
       if (activeTab === 'resumes') fetchResumesList();
-    }, 12000);
-    return () => clearInterval(refreshTimerRef.current);
-  }, [autoRefresh, activeTab, fetchStats, fetchUsers, fetchLogs, fetchApplications, fetchResumesList]);
-=======
       if (activeTab === 'jobs') fetchAdminJobs();
     }, 12000);
     return () => clearInterval(refreshTimerRef.current);
-  }, [autoRefresh, activeTab, fetchStats, fetchUsers, fetchLogs, fetchAdminJobs]);
->>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
+  }, [autoRefresh, activeTab, fetchStats, fetchUsers, fetchLogs, fetchApplications, fetchResumesList, fetchAdminJobs]);
 
   /* ─── Actions ──────────────────────────────────────────────────── */
   const handleForceLogout = async (userId, userName) => {
@@ -1837,11 +1853,10 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold border transition-all ${
-              autoRefresh
-                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-                : 'border-slate-700 bg-slate-800 text-slate-400'
-            }`}
+            className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold border transition-all ${autoRefresh
+              ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+              : 'border-slate-700 bg-slate-800 text-slate-400'
+              }`}
             title="Auto-refresh live metrics every 12 seconds"
           >
             <span className={`h-2 w-2 rounded-full ${autoRefresh ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
@@ -2052,102 +2067,90 @@ export default function AdminDashboard() {
       <div className="flex border-b border-slate-200 bg-white rounded-2xl shadow-sm p-1.5 gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('monitor')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
-            activeTab === 'monitor'
-              ? 'bg-rose-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'monitor'
+            ? 'bg-rose-600 text-white shadow-md'
+            : 'text-slate-600 hover:bg-slate-100'
+            }`}
         >
           <Activity className="h-4 w-4" />
           <span>Live User Monitor</span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-            activeTab === 'monitor' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
-          }`}>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeTab === 'monitor' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
+            }`}>
             {stats?.users?.live ?? 0} Online
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
-            activeTab === 'users'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'users'
+            ? 'bg-blue-600 text-white shadow-md'
+            : 'text-slate-600 hover:bg-slate-100'
+            }`}
         >
           <Users className="h-4 w-4" />
           <span>User Management</span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-            activeTab === 'users' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-          }`}>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeTab === 'users' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
             {stats?.users?.total ?? 0}
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('applications')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
-            activeTab === 'applications'
-              ? 'bg-emerald-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'applications'
+            ? 'bg-emerald-600 text-white shadow-md'
+            : 'text-slate-600 hover:bg-slate-100'
+            }`}
         >
           <Briefcase className="h-4 w-4" />
           <span>All Applications</span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-            activeTab === 'applications' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-          }`}>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeTab === 'applications' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
             {stats?.entities?.applications ?? 0}
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('resumes')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
-            activeTab === 'resumes'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'resumes'
+            ? 'bg-indigo-600 text-white shadow-md'
+            : 'text-slate-600 hover:bg-slate-100'
+            }`}
         >
           <FileText className="h-4 w-4" />
           <span>All Resumes &amp; Preview</span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-            activeTab === 'resumes' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-          }`}>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeTab === 'resumes' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
             {stats?.entities?.resumes ?? 0}
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('logs')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
-            activeTab === 'logs'
-              ? 'bg-slate-900 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'logs'
+            ? 'bg-slate-900 text-white shadow-md'
+            : 'text-slate-600 hover:bg-slate-100'
+            }`}
         >
           <Clock className="h-4 w-4" />
           <span>User Activity &amp; Audit Logs</span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-            activeTab === 'logs' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-          }`}>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeTab === 'logs' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
             {stats?.activity?.totalLogs ?? 0}
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('jobs')}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
-            activeTab === 'jobs'
-              ? 'bg-violet-600 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${activeTab === 'jobs'
+            ? 'bg-violet-600 text-white shadow-md'
+            : 'text-slate-600 hover:bg-slate-100'
+            }`}
         >
           <Briefcase className="h-4 w-4" />
           <span>Job Listings</span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-            activeTab === 'jobs' ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-700'
-          }`}>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeTab === 'jobs' ? 'bg-white/20 text-white' : 'bg-violet-100 text-violet-700'
+            }`}>
             {stats?.entities?.jobs ?? 0}
           </span>
         </button>
@@ -2550,261 +2553,266 @@ export default function AdminDashboard() {
 
       {/* ─── TAB 3: All User Applications (Cross-User) ─────────────────── */}
       {activeTab === 'applications' && (
-        <div className="space-y-4">
-          {/* Header & Stats */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <div>
-              <div className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5 text-emerald-600" />
-                <h2 className="text-lg font-black text-slate-900">All User Job Applications</h2>
-                <span className="rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5">
-                  {appPagination.total} Total
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Inspect, monitor, and filter job applications tracked by every candidate across the platform
-              </p>
-            </div>
-
-            {/* Quick Status Badges */}
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <button
-                onClick={() => { setAppStatusFilter('all'); setAppPage(1); }}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
-                  appStatusFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                All ({appPagination.total})
-              </button>
-              <button
-                onClick={() => { setAppStatusFilter('Applied'); setAppPage(1); }}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
-                  appStatusFilter === 'Applied' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                }`}
-              >
-                Applied ({appStatusCounts['Applied'] || 0})
-              </button>
-              <button
-                onClick={() => { setAppStatusFilter('Interview Scheduled,Technical Interview,HR Interview'); setAppPage(1); }}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
-                  appStatusFilter.includes('Interview') ? 'bg-purple-600 text-white shadow-xs' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-                }`}
-              >
-                Interviews ({(appStatusCounts['Interview Scheduled'] || 0) + (appStatusCounts['Technical Interview'] || 0) + (appStatusCounts['HR Interview'] || 0)})
-              </button>
-              <button
-                onClick={() => { setAppStatusFilter('Offer,Accepted'); setAppPage(1); }}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
-                  appStatusFilter.includes('Offer') ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                }`}
-              >
-                Offers ({(appStatusCounts['Offer'] || 0) + (appStatusCounts['Accepted'] || 0)})
-              </button>
-              <button
-                onClick={() => { setAppStatusFilter('Rejected,Withdrawn'); setAppPage(1); }}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${
-                  appStatusFilter.includes('Rejected') ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                }`}
-              >
-                Rejected ({(appStatusCounts['Rejected'] || 0) + (appStatusCounts['Withdrawn'] || 0)})
-              </button>
-            </div>
-          </div>
-
-          {/* Search bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="relative flex-1 min-w-[240px]">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                value={appSearch}
-                onChange={e => { setAppSearch(e.target.value); setAppPage(1); }}
-                placeholder="Search applications by candidate name, company, role, location, or notes…"
-                className="w-full rounded-xl border border-slate-200 pl-9 pr-4 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
-            {appSearch && (
-              <button
-                onClick={() => { setAppSearch(''); setAppPage(1); }}
-                className="text-xs text-slate-500 hover:text-slate-800 font-semibold"
-              >
-                Clear Search
-              </button>
-            )}
-          </div>
-
-          {/* Applications Table */}
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
-                  <tr>
-                    <th className="px-5 py-3.5">Candidate / Applicant</th>
-                    <th className="px-4 py-3.5">Role &amp; Target Company</th>
-                    <th className="px-4 py-3.5">Application Status</th>
-                    <th className="px-4 py-3.5">Applied Date</th>
-                    <th className="px-4 py-3.5">Match Score</th>
-                    <th className="px-4 py-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {appsLoading ? (
-                    <tr>
-                      <td colSpan="6" className="p-12 text-center text-slate-400">
-                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-emerald-600" />
-                        Loading applications across all users…
-                      </td>
-                    </tr>
-                  ) : apps.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="p-12 text-center text-slate-400">
-                        <Briefcase className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                        No applications found matching your search and filter criteria.
-                      </td>
-                    </tr>
-                  ) : (
-                    apps.map((app) => {
-                      const user = app.userId || {};
-                      const job = app.jobId || {};
-                      const roleName = app.role || job.jobTitle || app.jobTitle || 'Role';
-                      const compName = app.company || job.companyName || app.companyName || '—';
-                      return (
-                        <tr key={app._id} className="hover:bg-slate-50/70 transition-colors">
-                          {/* Candidate info */}
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-3">
-                              <div
-                                onClick={() => user._id && setInfoModalUser(user)}
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs cursor-pointer hover:opacity-90 transition-opacity"
-                                title="Click to view full user details"
-                              >
-                                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                              </div>
-                              <div className="min-w-0">
-                                <button
-                                  type="button"
-                                  onClick={() => user._id && setInfoModalUser(user)}
-                                  className="font-bold text-slate-900 truncate hover:text-indigo-600 transition-colors text-left block text-xs"
-                                >
-                                  {user.name || 'Unknown User'}
-                                </button>
-                                <p className="text-[11px] text-slate-400 truncate">{user.email || '—'}</p>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Role & Company */}
-                          <td className="px-4 py-3.5">
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-900 text-xs truncate">{roleName}</p>
-                              <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mt-0.5">
-                                <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
-                                <span className="font-semibold text-slate-700 truncate">{compName}</span>
-                                {app.location && <span>· {app.location}</span>}
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Status */}
-                          <td className="px-4 py-3.5">
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
-                              (app.status || '').toLowerCase().includes('offer') ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                              (app.status || '').toLowerCase().includes('interview') ? 'bg-purple-100 text-purple-800 border border-purple-200' :
-                              (app.status || '').toLowerCase().includes('reject') ? 'bg-rose-100 text-rose-800 border border-rose-200' :
-                              (app.status || '').toLowerCase().includes('view') ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                              'bg-blue-50 text-blue-700 border border-blue-200'
-                            }`}>
-                              {app.status || 'Applied'}
-                            </span>
-                            {app.timeline?.length > 1 && (
-                              <span className="text-[10px] text-slate-400 block mt-0.5">
-                                {app.timeline.length} status stages
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Applied Date */}
-                          <td className="px-4 py-3.5 whitespace-nowrap text-slate-600 text-xs">
-                            {formatDate(app.createdAt)}
-                            <span className="text-[10px] text-slate-400 block">{formatTimeAgo(app.updatedAt)}</span>
-                          </td>
-
-                          {/* Match score */}
-                          <td className="px-4 py-3.5">
-                            {job.matchScore !== undefined ? (
-                              <span className={`rounded-lg px-2 py-0.5 text-[11px] font-black ${
-                                job.matchScore >= 80 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                                job.matchScore >= 60 ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                                'bg-slate-100 text-slate-600'
-                              }`}>
-                                {job.matchScore}%
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-xs">—</span>
-                            )}
-                          </td>
-
-                          {/* Actions */}
-                          <td className="px-4 py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {user._id && (
-                                <button
-                                  type="button"
-                                  onClick={() => setInfoModalUser(user)}
-                                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
-                                  title="View complete candidate dashboard & history"
-                                >
-                                  <Users className="h-3 w-3 text-slate-400" />
-                                  <span>Applicant</span>
-                                </button>
-                              )}
-                              {job.url && (
-                                <a
-                                  href={job.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="p-1 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                                  title="Open external job posting"
-                                >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </a>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {appPagination.totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 bg-slate-50 text-xs">
-                <p className="text-slate-500">
-                  Showing page <span className="font-bold text-slate-800">{appPage}</span> of {appPagination.totalPages} ({appPagination.total} total applications)
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    disabled={appPage <= 1}
-                    onClick={() => setAppPage(p => p - 1)}
-                    className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 disabled:opacity-40"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button
-                    disabled={appPage >= appPagination.totalPages}
-                    onClick={() => setAppPage(p => p + 1)}
-                    className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 disabled:opacity-40"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
+        <AdminTabErrorBoundary tabName="All Applications" onRetry={fetchApplications}>
+          <div className="space-y-4">
+            {/* Header & Stats */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-emerald-600" />
+                  <h2 className="text-lg font-black text-slate-900">All User Job Applications</h2>
+                  <span className="rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5">
+                    {appPagination?.total ?? 0} Total
+                  </span>
                 </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Inspect, monitor, and filter job applications tracked by every candidate across the platform
+                </p>
               </div>
-            )}
+
+              {/* Quick Status Badges */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <button
+                  onClick={() => { setAppStatusFilter('all'); setAppPage(1); }}
+                  className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${appStatusFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                >
+                  All ({appPagination?.total ?? 0})
+                </button>
+                <button
+                  onClick={() => { setAppStatusFilter('Applied'); setAppPage(1); }}
+                  className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${appStatusFilter === 'Applied' ? 'bg-blue-600 text-white shadow-xs' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                    }`}
+                >
+                  Applied ({appStatusCounts?.['Applied'] ?? 0})
+                </button>
+                <button
+                  onClick={() => { setAppStatusFilter('Interview Scheduled,Technical Interview,HR Interview'); setAppPage(1); }}
+                  className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${String(appStatusFilter || '').includes('Interview') ? 'bg-purple-600 text-white shadow-xs' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                    }`}
+                >
+                  Interviews ({((appStatusCounts?.['Interview Scheduled'] ?? 0) + (appStatusCounts?.['Technical Interview'] ?? 0) + (appStatusCounts?.['HR Interview'] ?? 0))})
+                </button>
+                <button
+                  onClick={() => { setAppStatusFilter('Offer,Accepted'); setAppPage(1); }}
+                  className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${String(appStatusFilter || '').includes('Offer') ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    }`}
+                >
+                  Offers ({((appStatusCounts?.['Offer'] ?? 0) + (appStatusCounts?.['Accepted'] ?? 0))})
+                </button>
+                <button
+                  onClick={() => { setAppStatusFilter('Rejected,Withdrawn'); setAppPage(1); }}
+                  className={`rounded-lg px-2.5 py-1 font-semibold transition-all ${String(appStatusFilter || '').includes('Rejected') ? 'bg-rose-600 text-white shadow-xs' : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                    }`}
+                >
+                  Rejected ({((appStatusCounts?.['Rejected'] ?? 0) + (appStatusCounts?.['Withdrawn'] ?? 0))})
+                </button>
+              </div>
+            </div>
+
+            {/* Search bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={appSearch}
+                  onChange={e => { setAppSearch(e.target.value); setAppPage(1); }}
+                  placeholder="Search applications by candidate name, company, role, location, or notes…"
+                  className="w-full rounded-xl border border-slate-200 pl-9 pr-4 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              {appSearch && (
+                <button
+                  onClick={() => { setAppSearch(''); setAppPage(1); }}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-semibold"
+                >
+                  Clear Search
+                </button>
+              )}
+            </div>
+
+            {/* Applications Table */}
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5">Candidate / Applicant</th>
+                      <th className="px-4 py-3.5">Role &amp; Target Company</th>
+                      <th className="px-4 py-3.5">Application Status</th>
+                      <th className="px-4 py-3.5">Applied Date</th>
+                      <th className="px-4 py-3.5">Match Score</th>
+                      <th className="px-4 py-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {appsLoading ? (
+                      <tr>
+                        <td colSpan="6" className="p-12 text-center text-slate-400">
+                          <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-emerald-600" />
+                          Loading applications across all users…
+                        </td>
+                      </tr>
+                    ) : (!apps || apps.length === 0) ? (
+                      <tr>
+                        <td colSpan="6" className="p-12 text-center text-slate-400">
+                          <Briefcase className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                          No applications found matching your search and filter criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      apps.map((app) => {
+                        if (!app) return null;
+                        const user = (typeof app.userId === 'object' && app.userId !== null) ? app.userId : (typeof app.user === 'object' && app.user !== null ? app.user : {});
+                        const job = (typeof app.jobId === 'object' && app.jobId !== null) ? app.jobId : (typeof app.job === 'object' && app.job !== null ? app.job : {});
+                        const roleName = app.role || job.jobTitle || app.jobTitle || 'Role';
+                        const compName = app.company || job.companyName || app.companyName || '—';
+                        const userName = user.name || (typeof app.userId === 'string' ? 'User ID: ' + app.userId.slice(-6) : 'Unknown User');
+                        const userInitial = typeof userName === 'string' && userName ? userName.charAt(0).toUpperCase() : 'U';
+                        const userEmail = user.email || '—';
+                        const statusStr = String(app.status || 'Applied');
+                        const statusLower = statusStr.toLowerCase();
+                        const appliedDate = app.applicationDate || app.createdAt;
+                        const updatedDate = app.updatedAt || app.createdAt;
+                        const matchScore = job.matchScore !== undefined ? job.matchScore : (app.matchScore !== undefined ? app.matchScore : null);
+
+                        return (
+                          <tr key={app._id || Math.random()} className="hover:bg-slate-50/70 transition-colors">
+                            {/* Candidate info */}
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  onClick={() => user._id && setInfoModalUser(user)}
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs cursor-pointer hover:opacity-90 transition-opacity"
+                                  title="Click to view full user details"
+                                >
+                                  {userInitial}
+                                </div>
+                                <div className="min-w-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => user._id && setInfoModalUser(user)}
+                                    className="font-bold text-slate-900 truncate hover:text-indigo-600 transition-colors text-left block text-xs"
+                                  >
+                                    {userName}
+                                  </button>
+                                  <p className="text-[11px] text-slate-400 truncate">{userEmail}</p>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Role & Company */}
+                            <td className="px-4 py-3.5">
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 text-xs truncate">{roleName}</p>
+                                <div className="flex items-center gap-1.5 text-slate-500 text-[11px] mt-0.5">
+                                  <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
+                                  <span className="font-semibold text-slate-700 truncate">{compName}</span>
+                                  {app.location && <span>· {app.location}</span>}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-4 py-3.5">
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${statusLower.includes('offer') ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                statusLower.includes('interview') ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                                  statusLower.includes('reject') ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                                    statusLower.includes('view') ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                      'bg-blue-50 text-blue-700 border border-blue-200'
+                                }`}>
+                                {statusStr}
+                              </span>
+                              {Array.isArray(app.timeline) && app.timeline.length > 1 && (
+                                <span className="text-[10px] text-slate-400 block mt-0.5">
+                                  {app.timeline.length} status stages
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Applied Date */}
+                            <td className="px-4 py-3.5 whitespace-nowrap text-slate-600 text-xs">
+                              {formatDate(appliedDate)}
+                              <span className="text-[10px] text-slate-400 block">{formatTimeAgo(updatedDate)}</span>
+                            </td>
+
+                            {/* Match score */}
+                            <td className="px-4 py-3.5">
+                              {matchScore !== null && matchScore !== undefined ? (
+                                <span className={`rounded-lg px-2 py-0.5 text-[11px] font-black ${matchScore >= 80 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                  matchScore >= 60 ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                    'bg-slate-100 text-slate-600'
+                                  }`}>
+                                  {matchScore}%
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-xs">—</span>
+                              )}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-4 py-3.5 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {user._id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setInfoModalUser(user)}
+                                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
+                                    title="View complete candidate dashboard & history"
+                                  >
+                                    <Users className="h-3 w-3 text-slate-400" />
+                                    <span>Applicant</span>
+                                  </button>
+                                )}
+                                {job.url && (
+                                  <a
+                                    href={job.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                                    title="Open external job posting"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {(appPagination?.totalPages ?? 1) > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 bg-slate-50 text-xs">
+                  <p className="text-slate-500">
+                    Showing page <span className="font-bold text-slate-800">{appPage}</span> of {appPagination?.totalPages ?? 1} ({appPagination?.total ?? 0} total applications)
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      disabled={appPage <= 1}
+                      onClick={() => setAppPage(p => p - 1)}
+                      className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 disabled:opacity-40"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      disabled={appPage >= (appPagination?.totalPages ?? 1)}
+                      onClick={() => setAppPage(p => p + 1)}
+                      className="rounded-lg border border-slate-200 bg-white p-1.5 hover:bg-slate-100 disabled:opacity-40"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </AdminTabErrorBoundary>
       )}
 
       {/* ─── TAB 4: All User Resumes & Preview (Cross-User) ──────────────── */}
@@ -2935,11 +2943,10 @@ export default function AdminDashboard() {
                           <td className="px-4 py-3.5">
                             {r.atsScore !== null && r.atsScore !== undefined ? (
                               <div className="inline-flex items-center gap-1.5">
-                                <span className={`rounded-xl px-2.5 py-1 text-xs font-black shadow-2xs ${
-                                  r.atsScore >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                <span className={`rounded-xl px-2.5 py-1 text-xs font-black shadow-2xs ${r.atsScore >= 75 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                                   r.atsScore >= 50 ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                                  'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}>
+                                    'bg-amber-50 text-amber-700 border border-amber-200'
+                                  }`}>
                                   {r.atsScore} / 100
                                 </span>
                               </div>
@@ -3425,144 +3432,143 @@ export default function AdminDashboard() {
                       const topSkills = (job.matchedSkills && job.matchedSkills.length > 0 ? job.matchedSkills : job.skills || []).slice(0, 3);
                       const applyUrl = job.careerPageUrl || job.jobUrl || job.companyWebsite;
                       return (
-                      <tr key={job._id} className="hover:bg-violet-50/40 transition-colors">
-                        <td className="px-4 py-3 text-slate-400 font-mono">
-                          {(adminJobPagination.page - 1) * adminJobPagination.limit + idx + 1}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700 font-black text-xs">
-                              {job.companyName.charAt(0).toUpperCase()}
+                        <tr key={job._id} className="hover:bg-violet-50/40 transition-colors">
+                          <td className="px-4 py-3 text-slate-400 font-mono">
+                            {(adminJobPagination.page - 1) * adminJobPagination.limit + idx + 1}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700 font-black text-xs">
+                                {job.companyName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-800 truncate max-w-[140px]">{job.companyName}</p>
+                                <p className="text-[10px] text-slate-400 truncate max-w-[140px]">{job.source}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-bold text-slate-800 truncate max-w-[140px]">{job.companyName}</p>
-                              <p className="text-[10px] text-slate-400 truncate max-w-[140px]">{job.source}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-semibold text-slate-800 truncate max-w-[200px]">{job.jobTitle}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">{job.experienceRequired}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1 text-slate-600">
+                              <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+                              <span className="truncate max-w-[130px]">{job.location}</span>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-semibold text-slate-800 truncate max-w-[200px]">{job.jobTitle}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{job.experienceRequired}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1 text-slate-600">
-                            <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
-                            <span className="truncate max-w-[130px]">{job.location}</span>
-                          </div>
-                          {job.remote && (
-                            <span className="mt-0.5 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                              Remote
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {job.salary?.min ? (
-                            <span className="font-semibold text-slate-700">
-                              ₹{(job.salary.min / 100000).toFixed(1)}L – ₹{(job.salary.max / 100000).toFixed(1)}L
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
+                            {job.remote && (
+                              <span className="mt-0.5 inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                                Remote
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {job.salary?.min ? (
+                              <span className="font-semibold text-slate-700">
+                                ₹{(job.salary.min / 100000).toFixed(1)}L – ₹{(job.salary.max / 100000).toFixed(1)}L
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
 
-                        {/* ATS / Match Score */}
-                        <td className="px-4 py-3">
-                          <div className={`inline-flex flex-col items-center rounded-xl border px-3 py-1.5 min-w-[60px] ${scoreBg}`}>
-                            <span className={`text-base font-black leading-none ${scoreColor}`}>
-                              {score > 0 ? `${score}%` : '—'}
-                            </span>
-                            {score > 0 && (
-                              <>
-                                <div className="mt-1 h-1 w-10 rounded-full bg-slate-200 overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full transition-all ${scoreBarColor}`}
-                                    style={{ width: `${score}%` }}
-                                  />
-                                </div>
-                                <span className={`mt-0.5 text-[9px] font-bold uppercase tracking-wider ${scoreColor}`}>
-                                  {score >= 75 ? 'Strong' : score >= 50 ? 'Good' : 'Low'}
+                          {/* ATS / Match Score */}
+                          <td className="px-4 py-3">
+                            <div className={`inline-flex flex-col items-center rounded-xl border px-3 py-1.5 min-w-[60px] ${scoreBg}`}>
+                              <span className={`text-base font-black leading-none ${scoreColor}`}>
+                                {score > 0 ? `${score}%` : '—'}
+                              </span>
+                              {score > 0 && (
+                                <>
+                                  <div className="mt-1 h-1 w-10 rounded-full bg-slate-200 overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${scoreBarColor}`}
+                                      style={{ width: `${score}%` }}
+                                    />
+                                  </div>
+                                  <span className={`mt-0.5 text-[9px] font-bold uppercase tracking-wider ${scoreColor}`}>
+                                    {score >= 75 ? 'Strong' : score >= 50 ? 'Good' : 'Low'}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Top Skills */}
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1 max-w-[180px]">
+                              {topSkills.length > 0 ? topSkills.map((skill, si) => (
+                                <span
+                                  key={si}
+                                  className="inline-flex rounded-full bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
+                                >
+                                  {skill}
                                 </span>
-                              </>
-                            )}
-                          </div>
-                        </td>
+                              )) : (
+                                <span className="text-slate-400 text-[10px]">—</span>
+                              )}
+                              {(job.skills || []).length > 3 && (
+                                <span className="inline-flex rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                                  +{(job.skills || []).length - 3}
+                                </span>
+                              )}
+                            </div>
+                          </td>
 
-                        {/* Top Skills */}
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-1 max-w-[180px]">
-                            {topSkills.length > 0 ? topSkills.map((skill, si) => (
-                              <span
-                                key={si}
-                                className="inline-flex rounded-full bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
+                          {/* Status */}
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border ${job.status === 'new' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : job.status === 'saved' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : job.status === 'applied' ? 'bg-violet-50 text-violet-700 border-violet-200'
+                                  : job.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                              }`}>
+                              {job.status}
+                            </span>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              {job.postedDate ? new Date(job.postedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                            </p>
+                          </td>
+
+                          {/* Apply Link */}
+                          <td className="px-4 py-3">
+                            {applyUrl ? (
+                              <a
+                                href={applyUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-violet-300 bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-sm hover:from-violet-700 hover:to-indigo-700 transition-all whitespace-nowrap"
                               >
-                                {skill}
-                              </span>
-                            )) : (
-                              <span className="text-slate-400 text-[10px]">—</span>
+                                <ExternalLink className="h-3 w-3" />
+                                Apply Now
+                              </a>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">No link</span>
                             )}
-                            {(job.skills || []).length > 3 && (
-                              <span className="inline-flex rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-                                +{(job.skills || []).length - 3}
-                              </span>
-                            )}
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Status */}
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border ${
-                            job.status === 'new' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : job.status === 'saved' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : job.status === 'applied' ? 'bg-violet-50 text-violet-700 border-violet-200'
-                            : job.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200'
-                            : 'bg-slate-100 text-slate-600 border-slate-200'
-                          }`}>
-                            {job.status}
-                          </span>
-                          <p className="text-[10px] text-slate-400 mt-1">
-                            {job.postedDate ? new Date(job.postedDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
-                          </p>
-                        </td>
-
-                        {/* Apply Link */}
-                        <td className="px-4 py-3">
-                          {applyUrl ? (
-                            <a
-                              href={applyUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 rounded-xl border border-violet-300 bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-sm hover:from-violet-700 hover:to-indigo-700 transition-all whitespace-nowrap"
+                          {/* Delete */}
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm(`Delete "${job.jobTitle}" at ${job.companyName}?`)) return;
+                                try {
+                                  const res = await adminService.deleteJob(job._id);
+                                  toast.success(res.message || 'Job deleted');
+                                  fetchAdminJobs();
+                                  fetchStats();
+                                } catch (err) {
+                                  toast.error(err.message || 'Failed to delete job');
+                                }
+                              }}
+                              className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[10px] font-bold text-red-600 hover:bg-red-100 transition-colors"
+                              title="Delete job"
                             >
-                              <ExternalLink className="h-3 w-3" />
-                              Apply Now
-                            </a>
-                          ) : (
-                            <span className="text-slate-400 text-[10px]">No link</span>
-                          )}
-                        </td>
-
-                        {/* Delete */}
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={async () => {
-                              if (!window.confirm(`Delete "${job.jobTitle}" at ${job.companyName}?`)) return;
-                              try {
-                                const res = await adminService.deleteJob(job._id);
-                                toast.success(res.message || 'Job deleted');
-                                fetchAdminJobs();
-                                fetchStats();
-                              } catch (err) {
-                                toast.error(err.message || 'Failed to delete job');
-                              }
-                            }}
-                            className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[10px] font-bold text-red-600 hover:bg-red-100 transition-colors"
-                            title="Delete job"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
+                              <Trash2 className="h-3 w-3" />
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
                       );
                     })}
                   </tbody>

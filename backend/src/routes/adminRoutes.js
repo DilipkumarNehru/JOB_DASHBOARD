@@ -9,13 +9,10 @@ import {
   getAuthLogs,
   getLiveUsers,
   forceLogoutUser,
-<<<<<<< HEAD
   getAllApplications,
   getAllResumes,
-=======
   getAllJobsAdmin,
   deleteJobAdmin,
->>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
 } from '../controllers/adminController.js';
 import { protect, adminOnly } from '../middleware/auth.js';
 

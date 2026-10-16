@@ -550,7 +550,6 @@ export const forceLogoutUser = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-<<<<<<< HEAD
 /* ─── 10. Get All Applications (Across all users) ─────────────────────── */
 export const getAllApplications = async (req, res, next) => {
   try {
@@ -670,7 +669,7 @@ export const getAllResumes = async (req, res, next) => {
     });
   } catch (err) { next(err); }
 };
-=======
+
 /* ─── Admin: Get All Jobs (global, not user-scoped) ─────────────── */
 export const getAllJobsAdmin = async (req, res, next) => {
   try {
@@ -772,4 +771,3 @@ export const deleteJobAdmin = async (req, res, next) => {
     res.json({ success: true, message: `Job "${job.jobTitle}" at ${job.companyName} deleted.` });
   } catch (err) { next(err); }
 };
->>>>>>> 26f7806c2bc3bbb95e4788fa1301755a14407318
