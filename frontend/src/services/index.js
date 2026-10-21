@@ -38,6 +38,7 @@ export const resumeService = {
   convertAndSaveWord: (id, data) => api.post(`/resumes/${id}/convert-word`, data),
   convertAndSavePdf: (id, data) => api.post(`/resumes/${id}/convert-pdf`, data),
   convertAndSave: (id, data) => api.post(`/resumes/${id}/convert`, data),
+  createFromTemplate: (data) => api.post('/resumes/create-from-template', data),
   previewHtml: (id) => api.get(`/resumes/${id}/preview-html`),
   getVersion: (versionId) => api.get(`/resumes/versions/${versionId}`),
   setVersionPrimary: (versionId) => api.put(`/resumes/versions/${versionId}/primary`),
