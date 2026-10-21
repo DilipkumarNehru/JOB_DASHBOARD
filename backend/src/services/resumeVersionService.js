@@ -8,95 +8,223 @@ import { logger } from '../utils/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const buildPdfFromProfile = async (profile, targetCompany) => {
+const TEMPLATE_THEMES = {
+  modern: {
+    primary: '#1e40af', // royal/indigo blue
+    secondary: '#1e293b',
+    body: '#334155',
+    accent: '#3b82f6',
+    divider: '#93c5fd',
+  },
+  executive: {
+    primary: '#0f172a', // deep navy slate
+    secondary: '#1e293b',
+    body: '#334155',
+    accent: '#475569',
+    divider: '#cbd5e1',
+  },
+  minimal: {
+    primary: '#18181b', // pure crisp black/zinc
+    secondary: '#27272a',
+    body: '#3f3f46',
+    accent: '#71717a',
+    divider: '#e4e4e7',
+  },
+  creative: {
+    primary: '#047857', // emerald green
+    secondary: '#064e3b',
+    body: '#334155',
+    accent: '#10b981',
+    divider: '#a7f3d0',
+  },
+  fresher: {
+    primary: '#6d28d9', // vibrant violet
+    secondary: '#4c1d95',
+    body: '#334155',
+    accent: '#8b5cf6',
+    divider: '#ddd6fe',
+  },
+  datascience: {
+    primary: '#0369a1', // rich sky-blue
+    secondary: '#0c4a6e',
+    body: '#334155',
+    accent: '#0ea5e9',
+    divider: '#7dd3fc',
+  },
+  sales: {
+    primary: '#b45309', // warm amber-orange
+    secondary: '#78350f',
+    body: '#334155',
+    accent: '#f59e0b',
+    divider: '#fcd34d',
+  },
+  devops: {
+    primary: '#0f766e', // deep teal
+    secondary: '#134e4a',
+    body: '#334155',
+    accent: '#14b8a6',
+    divider: '#99f6e4',
+  },
+  healthcare: {
+    primary: '#be123c', // crimson rose
+    secondary: '#881337',
+    body: '#334155',
+    accent: '#f43f5e',
+    divider: '#fda4af',
+  },
+  accounting: {
+    primary: '#1d4ed8', // classic corporate blue
+    secondary: '#1e3a5f',
+    body: '#334155',
+    accent: '#3b82f6',
+    divider: '#bfdbfe',
+  },
+  fresher_it: {
+    primary: '#c2410c', // bold orange
+    secondary: '#7c2d12',
+    body: '#334155',
+    accent: '#f97316',
+    divider: '#fed7aa',
+  },
+  fresher_nonit: {
+    primary: '#4338ca', // indigo
+    secondary: '#312e81',
+    body: '#334155',
+    accent: '#6366f1',
+    divider: '#c7d2fe',
+  },
+};
+
+export const buildPdfFromProfile = async (profile = {}, targetCompany = 'resume', rawText = '', templateId = 'modern') => {
   const dir = path.resolve(__dirname, '../../generated');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const filePath = path.join(dir, `${Date.now()}-${(targetCompany || 'resume').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.pdf`);
 
+  const tid = profile.templateId || templateId || 'modern';
+  const theme = TEMPLATE_THEMES[tid] || TEMPLATE_THEMES.modern;
+
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 48, size: 'A4' });
+      const doc = new PDFDocument({ margin: 44, size: 'A4' });
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
 
-      doc.fontSize(22).fillColor('#111827').text(profile.name || 'Candidate', { align: 'left' });
-      doc.moveDown(0.3);
-      doc.fontSize(9).fillColor('#374151')
-        .text([profile.email, profile.phone, profile.location].filter(Boolean).join('  |  '));
-      doc.moveDown(0.8);
-      doc.moveTo(48, doc.y).lineTo(552, doc.y).lineWidth(1).strokeColor('#e5e7eb').stroke();
-      doc.moveDown(0.8);
-
-      if (profile.summary) {
-        doc.fontSize(12).fillColor('#111827').text('PROFESSIONAL SUMMARY');
-        doc.moveDown(0.3);
-        doc.fontSize(10).fillColor('#374151').text(profile.summary, { lineGap: 3 });
-        doc.moveDown(0.6);
+      // Name & Title
+      doc.fontSize(22).fillColor(theme.primary).text(profile.name || 'Candidate', { align: 'left' });
+      if (profile.title) {
+        doc.moveDown(0.2);
+        doc.fontSize(11).fillColor(theme.accent).text(profile.title, { align: 'left' });
       }
 
+      // Contact Info
+      doc.moveDown(0.3);
+      const contactItems = [
+        profile.email,
+        profile.phone,
+        profile.location,
+        profile.linkedin,
+        profile.github,
+        profile.website
+      ].filter(Boolean);
+      doc.fontSize(9).fillColor(theme.body).text(contactItems.join('   |   '));
+
+      // Divider Line
+      doc.moveDown(0.6);
+      doc.moveTo(44, doc.y).lineTo(550, doc.y).lineWidth(1.5).strokeColor(theme.divider).stroke();
+      doc.moveDown(0.8);
+
+      // Professional Summary
+      if (profile.summary) {
+        doc.fontSize(12).fillColor(theme.primary).text('PROFESSIONAL SUMMARY');
+        doc.moveDown(0.25);
+        doc.fontSize(9.5).fillColor(theme.body).text(profile.summary, { lineGap: 3 });
+        doc.moveDown(0.7);
+      }
+
+      // Skills
       const skills = profile.skills || [];
       if (skills.length) {
-        doc.fontSize(12).fillColor('#111827').text('SKILLS');
-        doc.moveDown(0.3);
-        doc.fontSize(10).fillColor('#374151').text(skills.join('  •  '), { lineGap: 3 });
-        doc.moveDown(0.6);
+        doc.fontSize(12).fillColor(theme.primary).text('SKILLS');
+        doc.moveDown(0.25);
+        doc.fontSize(9.5).fillColor(theme.body).text(skills.join('   •   '), { lineGap: 3 });
+        doc.moveDown(0.7);
       }
 
+      // Experience
       const companies = profile.companies || [];
       if (companies.length) {
-        doc.fontSize(12).fillColor('#111827').text('EXPERIENCE');
+        doc.fontSize(12).fillColor(theme.primary).text('WORK EXPERIENCE');
         doc.moveDown(0.3);
         for (const c of companies) {
-          doc.fontSize(10).fillColor('#111827').text(`${c.role || 'Role'} — ${c.name || c.company || ''}`, { lineGap: 2 });
-          if (c.startDate || c.endDate) {
-            doc.fontSize(9).fillColor('#6b7280').text([c.startDate, c.endDate].filter(Boolean).join('  to  '));
+          const roleTitle = c.role || 'Position';
+          const companyName = c.name || c.company || '';
+          doc.fontSize(10.5).fillColor(theme.secondary).text(`${roleTitle}${companyName ? ` — ${companyName}` : ''}`, { lineGap: 2 });
+          
+          const dateLocation = [
+            [c.startDate, c.endDate || (c.current ? 'Present' : '')].filter(Boolean).join(' - '),
+            c.location
+          ].filter(Boolean).join('   |   ');
+
+          if (dateLocation) {
+            doc.fontSize(8.5).fillColor('#64748b').text(dateLocation);
           }
           for (const h of (c.highlights || [])) {
-            doc.fontSize(10).fillColor('#374151').text(`  •  ${h}`, { lineGap: 2 });
+            doc.fontSize(9.5).fillColor(theme.body).text(`  •  ${h}`, { lineGap: 2 });
           }
-          doc.moveDown(0.4);
+          doc.moveDown(0.5);
         }
       }
 
+      // Projects
       const projects = profile.projects || [];
       if (projects.length) {
-        doc.fontSize(12).fillColor('#111827').text('PROJECTS');
+        doc.fontSize(12).fillColor(theme.primary).text('PROJECTS');
         doc.moveDown(0.3);
         for (const p of projects) {
-          doc.fontSize(10).fillColor('#111827').text(p.title || 'Project');
-          for (const h of (p.highlights || [])) {
-            doc.fontSize(10).fillColor('#374151').text(`  •  ${h}`, { lineGap: 2 });
-          }
+          doc.fontSize(10.5).fillColor(theme.secondary).text(p.title || 'Project');
           if (p.technologies && p.technologies.length) {
-            doc.fontSize(9).fillColor('#6b7280').text(`Tech: ${p.technologies.join(', ')}`);
+            doc.fontSize(8.5).fillColor('#64748b').text(`Technologies: ${Array.isArray(p.technologies) ? p.technologies.join(', ') : p.technologies}`);
           }
-          doc.moveDown(0.4);
+          for (const h of (p.highlights || [])) {
+            doc.fontSize(9.5).fillColor(theme.body).text(`  •  ${h}`, { lineGap: 2 });
+          }
+          doc.moveDown(0.5);
         }
       }
 
+      // Education
       const education = profile.education || [];
       if (education.length) {
-        doc.fontSize(12).fillColor('#111827').text('EDUCATION');
+        doc.fontSize(12).fillColor(theme.primary).text('EDUCATION');
         doc.moveDown(0.3);
         for (const e of education) {
-          doc.fontSize(10).fillColor('#374151')
-            .text(`${e.degree || ''}${e.institution ? ' — ' + e.institution : ''}${e.year ? ' (' + e.year + ')' : ''}`);
+          const deg = e.degree || '';
+          const inst = e.institution ? ` — ${e.institution}` : '';
+          const yr = e.year ? ` (${e.year})` : '';
+          doc.fontSize(9.5).fillColor(theme.body).text(`${deg}${inst}${yr}`);
+          if (e.details) {
+            doc.fontSize(8.5).fillColor('#64748b').text(`  ${e.details}`);
+          }
         }
+        doc.moveDown(0.7);
       }
 
+      // Certifications
       const certifications = profile.certifications || [];
       if (certifications.length) {
-        doc.moveDown(0.6);
-        doc.fontSize(12).fillColor('#111827').text('CERTIFICATIONS');
+        doc.fontSize(12).fillColor(theme.primary).text('CERTIFICATIONS');
         doc.moveDown(0.3);
-        doc.fontSize(10).fillColor('#374151').text(certifications.join('  •  '));
+        doc.fontSize(9.5).fillColor(theme.body).text(
+          certifications.map(c => typeof c === 'string' ? c : (c.name || '')).filter(Boolean).join('   •   ')
+        );
       }
 
+      // RawText fallback
       if (!profile.summary && !skills.length && !companies.length && rawText) {
         doc.moveDown(0.6);
-        doc.fontSize(12).fillColor('#111827').text('RESUME CONTENT');
+        doc.fontSize(12).fillColor(theme.primary).text('RESUME CONTENT');
         doc.moveDown(0.3);
-        doc.fontSize(10).fillColor('#374151').text(rawText, { lineGap: 2 });
+        doc.fontSize(9.5).fillColor(theme.body).text(rawText, { lineGap: 2 });
       }
 
       doc.end();
@@ -188,12 +316,36 @@ export const buildDocxFromProfile = async (profile = {}, rawText = '', targetNam
           color: '111827',
         }),
       ],
-      spacing: { after: 100 },
+      spacing: { after: 60 },
     })
   );
 
+  // Title if present
+  if (profile.title) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: profile.title,
+            bold: true,
+            size: 22,
+            color: '2563EB',
+          }),
+        ],
+        spacing: { after: 100 },
+      })
+    );
+  }
+
   // Contact line
-  const contactParts = [profile.email, profile.phone, profile.location].filter(Boolean);
+  const contactParts = [
+    profile.email,
+    profile.phone,
+    profile.location,
+    profile.linkedin,
+    profile.github,
+    profile.website
+  ].filter(Boolean);
   if (contactParts.length) {
     children.push(
       new Paragraph({
@@ -295,9 +447,10 @@ export const buildDocxFromProfile = async (profile = {}, rawText = '', targetNam
         })
       );
       if (p.technologies && p.technologies.length) {
+        const techStr = Array.isArray(p.technologies) ? p.technologies.join(', ') : p.technologies;
         children.push(
           new Paragraph({
-            children: [new TextRun({ text: `Technologies: ${p.technologies.join(', ')}`, italics: true, size: 19, color: '6B7280' })],
+            children: [new TextRun({ text: `Technologies: ${techStr}`, italics: true, size: 19, color: '6B7280' })],
             spacing: { after: 40 },
           })
         );
@@ -345,9 +498,11 @@ export const buildDocxFromProfile = async (profile = {}, rawText = '', targetNam
       })
     );
     for (const cert of certifications) {
+      const certText = typeof cert === 'string' ? cert : (cert.name || '');
+      if (!certText) continue;
       children.push(
         new Paragraph({
-          children: [new TextRun({ text: `• ${cert}`, size: 21, color: '374151' })],
+          children: [new TextRun({ text: `• ${certText}`, size: 21, color: '374151' })],
           spacing: { after: 40 },
         })
       );

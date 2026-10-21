@@ -5,13 +5,14 @@ import DOMPurify from 'dompurify';
 import {
   Upload, FileText, Sparkles, Download, Trash2,
   Star, Eye, ChevronRight, RefreshCw,
-  Info, Pencil, BarChart3, X, FileCheck, Clock, Crown, Edit3, Check, FileType, Briefcase
+  Info, Pencil, BarChart3, X, FileCheck, Clock, Crown, Edit3, Check, FileType, Briefcase, Palette
 } from 'lucide-react';
 import { resumeService } from '../services';
 import { EmptyState, ErrorState } from '../components/common/Feedbacks.jsx';
 import { Badge } from '../components/common/Badge.jsx';
 import { formatDate } from '../utils/format.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import TemplateResumeModal from '../components/resumes/TemplateResumeModal.jsx';
 
 /* ─── helpers ──────────────────────────────────────────────────── */
 const scoreColor = (s) => {
@@ -1037,6 +1038,7 @@ export default function Resumes() {
   const [previewResume, setPreviewResume] = useState(null);
   const [wordModalResume, setWordModalResume] = useState(null);
   const [pdfModalResume, setPdfModalResume] = useState(null);
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
   const handleResumeSaved = (savedResume, isNew) => {
     if (isNew) {
@@ -1144,34 +1146,45 @@ export default function Resumes() {
           <h1 className="text-2xl font-black text-slate-900">My Resumes</h1>
           <p className="mt-0.5 text-sm text-slate-500">
             {resumes.length === 0
-              ? 'Upload your first resume to get started'
+              ? 'Upload or generate your first resume to discover matched jobs'
               : `${resumes.length} resume${resumes.length > 1 ? 's' : ''} — Primary resume controls which jobs appear in your Jobs page`}
           </p>
         </div>
-        {resumes.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
-              <FileCheck className="h-3.5 w-3.5 text-blue-500" />
-              {resumes.length} resume{resumes.length > 1 ? 's' : ''}
-            </div>
-            {primary && (
-              <Link
-                to="/jobs?primaryOnly=true"
-                className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm"
-                title="Click to view primary resume matched jobs"
-              >
-                <Crown className="h-3.5 w-3.5" />
-                Primary: {primary.resumeName || primary.originalFileName} ↗
-              </Link>
-            )}
-            {avgScore !== null && (
-              <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-sm ${scoreColor(avgScore).bg} ${scoreColor(avgScore).text}`}>
-                <BarChart3 className="h-3.5 w-3.5" />
-                Avg Quality: {avgScore}/100
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Create with Templates CTA Button */}
+          <button
+            onClick={() => setTemplateModalOpen(true)}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:shadow-lg hover:from-blue-500 hover:to-purple-500 transition-all cursor-pointer"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span>Create with Templates</span>
+          </button>
+
+          {resumes.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
+                <FileCheck className="h-3.5 w-3.5 text-blue-500" />
+                {resumes.length} resume{resumes.length > 1 ? 's' : ''}
               </div>
-            )}
-          </div>
-        )}
+              {primary && (
+                <Link
+                  to="/jobs?primaryOnly=true"
+                  className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm"
+                  title="Click to view primary resume matched jobs"
+                >
+                  <Crown className="h-3.5 w-3.5" />
+                  Primary: {primary.resumeName || primary.originalFileName} ↗
+                </Link>
+              )}
+              {avgScore !== null && (
+                <div className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-sm ${scoreColor(avgScore).bg} ${scoreColor(avgScore).text}`}>
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Avg Quality: {avgScore}/100
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Primary resume info banner */}
@@ -1190,14 +1203,52 @@ export default function Resumes() {
         </div>
       )}
 
-      {/* Upload zone */}
-      <UploadZone onFile={onFile} uploading={uploading} />
+      {/* Creation & Upload Dual Action Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Option 1: Drop/Upload Existing Resume */}
+        <UploadZone onFile={onFile} uploading={uploading} />
+
+        {/* Option 2: Build New Resume with Templates Card */}
+        <div
+          onClick={() => setTemplateModalOpen(true)}
+          className="group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-indigo-200 bg-gradient-to-br from-indigo-50/70 via-blue-50/50 to-purple-50/70 p-8 text-center transition-all hover:border-indigo-400 hover:shadow-md"
+        >
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md group-hover:scale-105 transition-transform">
+            <Sparkles className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="flex items-center justify-center gap-2">
+              <p className="text-sm font-bold text-slate-900">Create with Templates</p>
+              <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-black text-white shadow-xs">NEW</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-600">
+              12 ATS-proven templates (Tech, Freshers IT &amp; Non-IT, Executive, Data Science, DevOps, Sales &amp; more)
+            </p>
+            <p className="mt-1 text-xs font-semibold text-indigo-700 group-hover:underline">
+              Launch Template Builder &amp; Instant PDF/Word &rarr;
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Resume list */}
       {resumes.length === 0 ? (
-        <EmptyState icon="📄" title="No resumes yet"
-          description="Upload your resume in any format. It will be parsed by AI, skills extracted, and matched against jobs. You can upload multiple resumes for different career profiles."
-          action={null} />
+        <EmptyState
+          icon="📄"
+          title="No resumes yet"
+          description="Upload an existing resume or build a brand new one using our professional templates. Resumes are parsed by AI, skills extracted, and matched against jobs."
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-3">
+              <button
+                onClick={() => setTemplateModalOpen(true)}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:shadow-lg transition-all"
+              >
+                <Sparkles className="h-4 w-4" />
+                Build with Templates
+              </button>
+            </div>
+          }
+        />
       ) : (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
@@ -1248,6 +1299,7 @@ export default function Resumes() {
           <li>Each job has a separate ATS score per resume (e.g. Developer Resume vs Accounts Resume)</li>
           <li>Changing the primary resume immediately updates your job recommendations</li>
           <li>Rename your resumes (e.g. "Developer Resume", "Accounts Resume") for clarity</li>
+          <li><strong>Create new resumes directly with ATS templates</strong> (Modern Tech, Executive, Minimalist, Creative, Fresher) without needing to upload an existing document</li>
           <li>Convert and edit any resume in Word (.docx) or PDF format with instant formatting, previewing, and flexible saving options</li>
           <li>Use the dedicated <strong>Convert to PDF</strong> button on any Word/DOCX resume to generate clean ATS-compliant PDF resumes</li>
         </ul>
@@ -1258,6 +1310,18 @@ export default function Resumes() {
       {previewResume && <PreviewModal resume={previewResume} onClose={() => setPreviewResume(null)} />}
       {wordModalResume && <WordConvertModal resume={wordModalResume} onClose={() => setWordModalResume(null)} onResumeSaved={handleResumeSaved} />}
       {pdfModalResume && <PdfConvertModal resume={pdfModalResume} onClose={() => setPdfModalResume(null)} onResumeConverted={handleResumeSaved} />}
+      {templateModalOpen && (
+        <TemplateResumeModal
+          onClose={() => setTemplateModalOpen(false)}
+          onCreated={(newResume, isPrimary) => {
+            handleResumeSaved(newResume, true);
+            if (isPrimary) {
+              setResumes(prev => prev.map(r => ({ ...r, isPrimary: r._id === newResume._id })));
+            }
+          }}
+          currentUser={user}
+        />
+      )}
     </div>
   );
 }

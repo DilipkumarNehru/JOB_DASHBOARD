@@ -782,3 +782,197 @@ const parseResumeFromText = async (rawText, user = null) => {
     }
   };
 };
+
+export const createResumeFromTemplate = async (req, res, next) => {
+  try {
+    const {
+      resumeName,
+      templateId = 'modern',
+      format = 'pdf', // 'pdf' | 'docx'
+      name,
+      title,
+      email,
+      phone,
+      location,
+      linkedin,
+      github,
+      website,
+      summary,
+      skills,
+      experienceYears,
+      companies = [],
+      education = [],
+      projects = [],
+      certifications = [],
+      isPrimary = false,
+      rawText,
+    } = req.body;
+
+    const parsedSkills = Array.isArray(skills)
+      ? skills.map(s => String(s).trim()).filter(Boolean)
+      : typeof skills === 'string'
+      ? skills.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
+    const finalProfile = {
+      name: (name || req.user.name || 'Candidate').trim(),
+      title: (title || '').trim(),
+      email: (email || req.user.email || '').trim(),
+      phone: (phone || '').trim(),
+      location: (location || '').trim(),
+      linkedin: (linkedin || '').trim(),
+      github: (github || '').trim(),
+      website: (website || '').trim(),
+      summary: (summary || '').trim(),
+      skills: parsedSkills,
+      experienceYears: Number(experienceYears) || 0,
+      companies: Array.isArray(companies) ? companies : [],
+      education: Array.isArray(education) ? education : [],
+      projects: Array.isArray(projects) ? projects : [],
+      certifications: Array.isArray(certifications)
+        ? certifications.map(c => typeof c === 'string' ? c.trim() : c.name || '').filter(Boolean)
+        : [],
+      templateId: templateId || 'modern',
+    };
+
+    const detectedDomain = detectResumeDomain(finalProfile);
+    finalProfile.profile = finalProfile.profile || detectedDomain;
+    const atsScore = computeAts(finalProfile);
+
+    // Build raw text representation if not provided
+    let finalRawText = rawText || '';
+    if (!finalRawText) {
+      const parts = [
+        finalProfile.name,
+        finalProfile.title,
+        [finalProfile.email, finalProfile.phone, finalProfile.location, finalProfile.linkedin, finalProfile.github, finalProfile.website].filter(Boolean).join(' | '),
+        finalProfile.summary ? `\nSUMMARY:\n${finalProfile.summary}` : '',
+        finalProfile.skills.length ? `\nSKILLS:\n${finalProfile.skills.join(', ')}` : '',
+      ];
+      if (finalProfile.companies.length) {
+        parts.push('\nWORK EXPERIENCE:');
+        finalProfile.companies.forEach(c => {
+          parts.push(`${c.role || 'Position'} at ${c.name || c.company || 'Company'} (${[c.startDate, c.endDate || (c.current ? 'Present' : '')].filter(Boolean).join(' - ')})`);
+          if (c.location) parts.push(`Location: ${c.location}`);
+          (c.highlights || []).forEach(h => parts.push(`- ${h}`));
+        });
+      }
+      if (finalProfile.projects.length) {
+        parts.push('\nPROJECTS:');
+        finalProfile.projects.forEach(p => {
+          parts.push(`${p.title || 'Project'}${p.technologies?.length ? ` (${Array.isArray(p.technologies) ? p.technologies.join(', ') : p.technologies})` : ''}`);
+          (p.highlights || []).forEach(h => parts.push(`- ${h}`));
+        });
+      }
+      if (finalProfile.education.length) {
+        parts.push('\nEDUCATION:');
+        finalProfile.education.forEach(e => {
+          parts.push(`${e.degree || ''} - ${e.institution || ''}${e.year ? ` (${e.year})` : ''}`);
+          if (e.details) parts.push(e.details);
+        });
+      }
+      if (finalProfile.certifications.length) {
+        parts.push(`\nCERTIFICATIONS:\n${finalProfile.certifications.join(', ')}`);
+      }
+      finalRawText = parts.filter(Boolean).join('\n');
+    }
+
+    const isPdf = (format || 'pdf').toLowerCase() === 'pdf';
+    const targetExt = isPdf ? 'pdf' : 'docx';
+    const targetMime = isPdf
+      ? 'application/pdf'
+      : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+    let requestedName = (resumeName || '').trim();
+    if (!requestedName) {
+      requestedName = `${finalProfile.name ? finalProfile.name.replace(/\s+/g, '_') : 'Resume'}_${templateId}`;
+    }
+    requestedName = requestedName.replace(/\.[^/.]+$/, '');
+    const finalFileName = `${requestedName}.${targetExt}`;
+    const displayResumeName = requestedName;
+
+    let generatedFilePath = '';
+    let generatedBuffer = null;
+
+    if (isPdf) {
+      const { buildPdfFromProfile } = await import('../services/resumeVersionService.js');
+      const result = await buildPdfFromProfile(finalProfile, requestedName, finalRawText, templateId);
+      generatedFilePath = result.filePath || result;
+      generatedBuffer = result.buffer || (fs.existsSync(generatedFilePath) ? fs.readFileSync(generatedFilePath) : null);
+    } else {
+      const { buildDocxFromProfile } = await import('../services/resumeVersionService.js');
+      const result = await buildDocxFromProfile(finalProfile, finalRawText, requestedName);
+      generatedFilePath = result.filePath;
+      generatedBuffer = result.buffer;
+    }
+
+    let fileId = null;
+    try {
+      fileId = await storeFile(generatedFilePath, finalFileName, targetMime, req.user.id);
+    } catch (storeErr) {
+      console.warn('GridFS storeFile warning:', storeErr.message);
+    }
+
+    const existingCount = await Resume.countDocuments({ userId: req.user.id });
+    const shouldBePrimary = isPrimary || existingCount === 0;
+
+    if (shouldBePrimary) {
+      await Resume.updateMany({ userId: req.user.id }, { isPrimary: false });
+    }
+
+    const createdResume = await Resume.create({
+      userId: req.user.id,
+      resumeName: displayResumeName,
+      originalFileName: finalFileName,
+      originalName: finalFileName,
+      fileName: path.basename(generatedFilePath),
+      filePath: generatedFilePath,
+      fileType: targetExt,
+      mimeType: targetMime,
+      fileSize: generatedBuffer?.length || 0,
+      fileId,
+      rawText: finalRawText,
+      parsedProfile: finalProfile,
+      isPrimary: shouldBePrimary,
+      atsScore,
+      analyzedAt: new Date(),
+    });
+
+    // Compute matches against jobs
+    const existingJobs = await Job.find({}).limit(50).lean();
+    if (existingJobs.length > 0) {
+      const { calculateMatch } = await import('../services/matchingEngineService.js');
+      for (const j of existingJobs) {
+        try {
+          const matchData = await calculateMatch(createdResume, j);
+          await JobMatch.create({
+            userId: req.user.id,
+            jobId: j._id,
+            resumeId: createdResume._id,
+            resumeName: displayResumeName,
+            ...matchData,
+            calculatedAt: new Date(),
+          });
+        } catch (_) {}
+      }
+    }
+
+    AuthLog.create({
+      userId: req.user.id,
+      email: req.user.email,
+      name: req.user.name,
+      role: req.user.role,
+      action: 'resume_create_template',
+      metadata: { resumeId: createdResume._id, templateId, format: targetExt },
+    }).catch(() => {});
+
+    res.status(201).json({
+      success: true,
+      resume: createdResume,
+      message: `Resume successfully created from ${templateId.toUpperCase()} template!`,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+

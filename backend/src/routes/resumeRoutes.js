@@ -4,7 +4,7 @@ import {
   deleteResume, analyzeResume, customizeResumeForJob, downloadResumePdf,
   getAtsScore, serveResumeFile, setPrimaryResume, updateResumeName,
   downloadResumeDocx, convertAndSaveDocx, convertAndSavePdf, convertAndSaveResume,
-  previewResumeHtml
+  previewResumeHtml, createResumeFromTemplate
 } from '../controllers/resumeController.js';
 import { getVersions, getVersion, deleteVersion, downloadVersionPdf, setPrimary } from '../controllers/resumeVersionController.js';
 import { protect } from '../middleware/auth.js';
@@ -15,6 +15,7 @@ router.use(protect);
 
 // Resume CRUD
 router.post('/', upload.single('resume'), uploadResume);
+router.post('/create-from-template', createResumeFromTemplate);
 router.get('/', getResumes);
 router.get('/primary', getPrimaryResume);
 
