@@ -42,12 +42,26 @@ export const deleteFile = (fileId) => {
 
 /**
  * Streams a GridFS file to an Express response.
+ * Handles stream errors gracefully to prevent unhandled 'error' event crashes.
  * @param {ObjectId} fileId
  * @param {Response} res
  * @param {string} disposition - 'inline' or 'attachment'
+ * @returns {Promise<void>}
  */
 export const streamFile = (fileId, res, disposition = 'inline') => {
-  const bucket = getBucket();
-  // Caller can set appropriate headers before calling this
-  bucket.openDownloadStream(fileId).pipe(res);
+  return new Promise((resolve, reject) => {
+    const bucket = getBucket();
+    const downloadStream = bucket.openDownloadStream(fileId);
+
+    downloadStream.on('error', (err) => {
+      // GridFS file not found or other stream error — reject so caller can send 404
+      reject(err);
+    });
+
+    downloadStream.on('end', () => {
+      resolve();
+    });
+
+    downloadStream.pipe(res);
+  });
 };

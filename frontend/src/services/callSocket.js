@@ -19,9 +19,9 @@ export function getSocketServerUrl() {
   if (typeof window !== 'undefined') {
     const { hostname, origin } = window.location;
     const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-    // When running locally in dev, connect directly to backend port 5000
+    // When running locally in dev, connect directly to backend port 5000 matching the current hostname
     if (isLocal) {
-      return 'http://localhost:5000';
+      return `http://${hostname}:5000`;
     }
     // LIVE DEPLOYMENT: Never connect to localhost from a live domain!
     // Connect to current origin (works with reverse proxies, Nginx, or single-origin deployments)

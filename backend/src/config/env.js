@@ -4,7 +4,8 @@ dotenv.config();
 export const config = {
   port: process.env.PORT || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
-  mongodbUri: process.env.MONGODB_URI || 'mongodb://job_dashboard_app:lKcFNoHQBTwnK0wtkOCEM3Vd0e7aGK03@127.0.0.1:27018/job_dashboard?authSource=job_dashboard',
+  mongodbUri: process.env.MONGODB_URI || "mongodb+srv://dbuser008u4l:Dilipdon559%40@docdb-cluster-20261027-1928.global.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000",
+  //  || 'mongodb://job_dashboard_app:lKcFNoHQBTwnK0wtkOCEM3Vd0e7aGK03@127.0.0.1:27018/job_dashboard?authSource=job_dashboard',
   jwtSecret: process.env.JWT_SECRET || 'job_dashboard_jwt_secret_key_secure_2026_super_dev',
   jwtExpire: process.env.JWT_EXPIRE || '30d',
   frontendUrl: process.env.FRONTEND_URL || 'https://jobdashboard-lina.duckdns.org',
