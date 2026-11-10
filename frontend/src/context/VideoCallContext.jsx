@@ -70,7 +70,7 @@ export const VideoCallProvider = ({ children }) => {
     if (!incomingCall) return;
     const room = incomingCall.roomId || 'active-users-room';
     setIncomingCall(null);
-    navigate(`/video-call?room=${encodeURIComponent(room)}`);
+    navigate(`/video-call?room=${encodeURIComponent(room)}&autoJoin=true`);
   }, [incomingCall, navigate]);
 
   const declineCall = useCallback(() => {

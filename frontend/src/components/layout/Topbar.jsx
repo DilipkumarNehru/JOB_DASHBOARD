@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, Bell, Search, ShieldCheck } from 'lucide-react';
+import { Menu, Bell, Search, ShieldCheck, MessageSquare, PhoneCall } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useDirectMessages } from '../../context/DirectMessageContext.jsx';
 
 export const Topbar = ({ onMenuClick, title }) => {
   const { unread } = useNotifications();
+  const { unreadCount: unreadDirectMessages, openDrawer, openAudioModal } = useDirectMessages();
   const { user } = useAuth();
   const [query, setQuery] = useState('');
 
@@ -54,6 +56,33 @@ export const Topbar = ({ onMenuClick, title }) => {
           <ShieldCheck className="h-4 w-4" />
         </Link>
       )}
+
+      {/* Audio / Voice Call Button */}
+      <button
+        type="button"
+        onClick={() => openAudioModal()}
+        className="relative btn-ghost h-9 w-9 p-0 text-slate-600 hover:text-emerald-600 transition-colors"
+        aria-label="Instant Audio Call"
+        title="Instant Voice & Audio Call"
+      >
+        <PhoneCall className="h-5 w-5" />
+      </button>
+
+      {/* Direct Messages Icon Button */}
+      <button
+        type="button"
+        onClick={() => openDrawer()}
+        className="relative btn-ghost h-9 w-9 p-0 text-slate-600 hover:text-indigo-600 transition-colors"
+        aria-label="Direct Messages"
+        title="Direct Messages & Teammates"
+      >
+        <MessageSquare className="h-5 w-5" />
+        {unreadDirectMessages > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white shadow-sm shadow-indigo-600/50 animate-pulse">
+            {unreadDirectMessages > 9 ? '9+' : unreadDirectMessages}
+          </span>
+        )}
+      </button>
 
       <Link to="/notifications" className="relative btn-ghost h-9 w-9 p-0" aria-label="Notifications">
         <Bell className="h-5 w-5" />

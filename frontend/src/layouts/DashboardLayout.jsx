@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from '../components/layout/Sidebar.jsx';
 import { Topbar } from '../components/layout/Topbar.jsx';
+import DirectMessagesDrawer from '../components/chat/DirectMessagesDrawer.jsx';
+import AudioCallModal from '../components/chat/AudioCallModal.jsx';
 import { useNotifications } from '../hooks/useNotifications.js';
 
 const TITLES = {
@@ -42,6 +44,8 @@ export default function DashboardLayout() {
           Job Dashboard — AI-powered job search &amp; application tracking. Deliberately assists, never auto-applies.
         </footer>
       </div>
+      <DirectMessagesDrawer />
+      <AudioCallModal />
     </div>
   );
 }

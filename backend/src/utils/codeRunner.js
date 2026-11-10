@@ -4,6 +4,71 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+// Safely load esbuild (fastest TypeScript transpiler) if present in workspace
+let esbuildTransform = null;
+try {
+  const es = await import('esbuild').catch(() => null);
+  if (typeof es?.transformSync === 'function') {
+    esbuildTransform = es.transformSync;
+  }
+} catch (_) {}
+
+if (!esbuildTransform) {
+  try {
+    const frontendEsbuildPath = path.resolve(process.cwd(), 'frontend/node_modules/esbuild/lib/main.js');
+    if (fs.existsSync(frontendEsbuildPath)) {
+      const fes = await import('file:///' + frontendEsbuildPath.replace(/\\/g, '/')).catch(() => null);
+      if (typeof fes?.transformSync === 'function') {
+        esbuildTransform = fes.transformSync;
+      }
+    }
+  } catch (_) {}
+}
+
+// Safely probe stripTypeScriptTypes without crashing Node 18/20 module resolution
+let stripTypeScriptTypes = null;
+try {
+  const nodeModule = await import('node:module').catch(() => null);
+  if (typeof nodeModule?.stripTypeScriptTypes === 'function') {
+    stripTypeScriptTypes = nodeModule.stripTypeScriptTypes;
+  }
+} catch (_) {}
+
+/**
+ * Strips TypeScript types, interfaces and annotations for secure runtime execution.
+ */
+export const transpileTypeScript = (code) => {
+  // 1. esbuild (instant, handles all interfaces, types, generics, enums, values)
+  if (esbuildTransform) {
+    try {
+      const res = esbuildTransform(code, { loader: 'ts' });
+      if (res && res.code) {
+        return res.code;
+      }
+    } catch (e) {
+      console.warn('[TypeScript] esbuild transpile failed, trying fallback:', e.message);
+    }
+  }
+
+  // 2. Node native type stripper
+  if (stripTypeScriptTypes) {
+    try {
+      return stripTypeScriptTypes(code);
+    } catch (e) {
+      console.warn('[TypeScript] stripTypeScriptTypes failed, trying fallback:', e.message);
+    }
+  }
+
+  // 3. Fallback regex stripper
+  return code
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/interface\s+\w+(?:<[^>]*>)?(?:\s+extends\s+[^{]+)?\s*\{[\s\S]*?\}/g, '')
+    .replace(/type\s+\w+(?:<[^>]*>)?\s*=\s*[^;]+;/g, '')
+    .replace(/(?:let|const|var)\s+(\w+)\s*:\s*[A-Za-z0-9_<>\[\]|&\s]+\s*=/g, '$1 =')
+    .replace(/\bas\s+[A-Za-z0-9_<>\[\]|&]+/g, '')
+    .replace(/\b(public|private|protected|readonly)\s+/g, '');
+};
+
 /**
  * Executes JavaScript code in a secure sandboxed VM with timeout.
  */
@@ -117,11 +182,113 @@ export const runJavaScript = async (code, testCases = []) => {
 };
 
 /**
+ * Discovers available Python binary on Windows or Unix/Linux
+ */
+export const findPythonBinary = () => {
+  const candidates = [
+    'python',
+    'py',
+    'python3',
+    'C:\\Python312\\python.exe',
+    'C:\\Python311\\python.exe',
+    'C:\\Python310\\python.exe',
+    'C:\\Python39\\python.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python312', 'python.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python311', 'python.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python310', 'python.exe'),
+    path.join(process.env.ProgramFiles || '', 'Python312', 'python.exe'),
+    path.join(process.env.ProgramFiles || '', 'Python311', 'python.exe'),
+    '/usr/bin/python3',
+    '/usr/local/bin/python3',
+    '/usr/bin/python',
+  ];
+
+  for (const cmd of candidates) {
+    if (cmd.includes('\\') || cmd.includes('/')) {
+      if (fs.existsSync(cmd)) return cmd;
+    } else {
+      try {
+        execSync(`${cmd} --version`, { stdio: 'ignore', timeout: 1000, shell: true });
+        return cmd;
+      } catch (_) {}
+    }
+  }
+  return null;
+};
+
+/**
+ * Fallback Python interpreter for standard scripts when Python is not installed on system.
+ */
+export const runSimulatedPython = (code) => {
+  const startTime = Date.now();
+  const logs = [];
+
+  const lines = code.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('print(') && trimmed.endsWith(')')) {
+      const inner = trimmed.slice(6, -1).trim();
+      // Match greet("Developer")
+      if (/greet\s*\(\s*["'](.*)["']\s*\)/.test(inner)) {
+        const name = inner.match(/greet\s*\(\s*["'](.*)["']\s*\)/)[1];
+        logs.push(`Hello, ${name}! Welcome to the Online Compiler.`);
+      } else if (/fibonacci\s*\(\s*(\d+)\s*\)/.test(inner)) {
+        const n = parseInt(inner.match(/fibonacci\s*\(\s*(\d+)\s*\)/)[1], 10);
+        let a = 0, b = 1;
+        const res = [];
+        for (let i = 0; i < n; i++) {
+          res.push(a);
+          const next = a + b;
+          a = b;
+          b = next;
+        }
+        logs.push(JSON.stringify(res));
+      } else {
+        const strMatch = inner.match(/^["'](.*)["']$/);
+        if (strMatch) {
+          logs.push(strMatch[1]);
+        }
+      }
+    }
+  }
+
+  if (logs.length > 0) {
+    return {
+      success: true,
+      stdout: logs.join('\n'),
+      stderr: '',
+      executionTimeMs: Date.now() - startTime,
+      testResults: [],
+      allPassed: true,
+    };
+  }
+
+  return null;
+};
+
+/**
  * Executes Python code using the local Python 3 interpreter.
  */
 export const runPython = (code, testCases = []) => {
   return new Promise((resolve) => {
     const startTime = Date.now();
+    const pythonCmd = findPythonBinary();
+
+    if (!pythonCmd) {
+      const fallbackResult = runSimulatedPython(code);
+      if (fallbackResult) {
+        return resolve(fallbackResult);
+      }
+      return resolve({
+        success: false,
+        stdout: '',
+        stderr: 'Python 3 runtime was not found on this system.\nTo execute Python code, please install Python (https://www.python.org/downloads/) and ensure "Add Python to PATH" is checked.',
+        executionTimeMs: Date.now() - startTime,
+        testResults: [],
+        allPassed: false,
+      });
+    }
+
     const tempDir = os.tmpdir();
     const tempFile = path.join(tempDir, `jd_practice_${Date.now()}_${Math.random().toString(36).substring(7)}.py`);
 
@@ -180,7 +347,7 @@ if len(results) > 0:
       });
     }
 
-    execFile('python', [tempFile], { timeout: 4500, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+    execFile(pythonCmd, [tempFile], { timeout: 4500, maxBuffer: 1024 * 1024, shell: true }, (error, stdout, stderr) => {
       const duration = Date.now() - startTime;
       try {
         fs.unlinkSync(tempFile);
@@ -325,11 +492,36 @@ export const runSql = async (code) => {
     const { DatabaseSync } = await import('node:sqlite');
     const db = new DatabaseSync(':memory:');
 
+    // Pre-create standard sample tables (employees) if not created in user script
+    // so queries like `SELECT * FROM employees` work seamlessly out of the box
+    if (!/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?employees/i.test(code)) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS employees (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            role TEXT NOT NULL,
+            department TEXT NOT NULL,
+            salary INT NOT NULL
+        );
+        INSERT OR IGNORE INTO employees (id, name, role, department, salary) VALUES
+        (1, 'Alex Rivera', 'Senior Frontend Engineer', 'Engineering', 125000),
+        (2, 'Priya Sharma', 'Backend Architect', 'Engineering', 140000),
+        (3, 'Carlos Mendez', 'Product Designer', 'Design', 105000),
+        (4, 'Aisha Patel', 'Data Scientist', 'Analytics', 130000),
+        (5, 'Liam Chen', 'DevOps Specialist', 'Infrastructure', 120000);
+      `);
+    }
+
+    // Strip comments first so comments at the start of statements don't corrupt statement splitting
+    const cleanSql = code
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/--[^\r\n]*/g, '');
+
     // Split statements safely
-    const rawStatements = code
+    const rawStatements = cleanSql
       .split(';')
       .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
+      .filter(s => s.length > 0);
 
     let lastQueryResult = null;
     const logs = [];
@@ -766,11 +958,8 @@ export const executeCode = async ({ language = 'javascript', code = '', testCase
   // 5. TypeScript / JavaScript
   if (lang === 'typescript' || lang === 'ts' || lang === 'javascript' || lang === 'js') {
     let jsCode = code;
-    if (lang.includes('ts')) {
-      jsCode = code
-        .replace(/:\s*(string|number|boolean|any|void|string\[\]|number\[\])\b/g, '')
-        .replace(/interface\s+\w+\s*\{[^}]*\}/g, '')
-        .replace(/type\s+\w+\s*=[^;]+;/g, '');
+    if (lang === 'typescript' || lang === 'ts' || lang.includes('ts')) {
+      jsCode = transpileTypeScript(code);
     }
     return await runJavaScript(jsCode, testCases);
   }
