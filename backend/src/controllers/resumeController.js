@@ -105,7 +105,7 @@ export const uploadResume = async (req, res, next) => {
         fileName: req.file.originalname,
         atsScore: calculatedAts,
       }
-    }).catch(() => {});
+    }).catch(() => { });
 
     res.status(201).json({ success: true, resume });
   } catch (err) { next(err); }
@@ -179,7 +179,7 @@ export const setPrimaryResume = async (req, res, next) => {
               { ...matchData, resumeId: resume._id, resumeName, calculatedAt: new Date() },
               { upsert: true, new: true }
             );
-          } catch (_) {}
+          } catch (_) { }
         }
       }
     }
@@ -225,6 +225,16 @@ export const deleteResume = async (req, res, next) => {
       }
     }
 
+    // Clean up GridFS file for this resume
+    if (resume.fileId) {
+      try {
+        const { deleteFile } = await import('../services/gridFsService.js');
+        await deleteFile(resume.fileId);
+      } catch (delErr) {
+        console.warn('GridFS deleteFile warning (file may already be missing):', delErr.message);
+      }
+    }
+
     // Clean up JobMatch records for this resume
     const { default: JobMatch } = await import('../models/JobMatch.js');
     await JobMatch.deleteMany({ userId: req.user.id, resumeId: resume._id });
@@ -241,7 +251,7 @@ export const deleteResume = async (req, res, next) => {
         resumeId: resume._id,
         resumeName: resume.resumeName || resume.originalFileName,
       }
-    }).catch(() => {});
+    }).catch(() => { });
 
     res.json({ success: true, message: 'Resume deleted' });
   } catch (err) { next(err); }
@@ -359,13 +369,13 @@ export const getAtsScore = async (req, res, next) => {
     const total = contactScore + skillsScore + expScore + educationScore + summaryScore + certScore + projectScore;
 
     const categories = [
-      { label: 'Contact Info',     score: contactScore,   max: 20, tip: 'Include name, email, phone & location' },
-      { label: 'Skills',           score: skillsScore,    max: 20, tip: 'Add at least 12 relevant technical skills' },
-      { label: 'Experience',       score: expScore,       max: 20, tip: 'Highlight years of experience clearly' },
-      { label: 'Education',        score: educationScore, max: 10, tip: 'Add degree, institution & graduation year' },
-      { label: 'Summary',          score: summaryScore,   max: 10, tip: 'Write a compelling 2-3 sentence professional summary' },
-      { label: 'Certifications',   score: certScore,      max: 10, tip: 'Add relevant certifications to stand out' },
-      { label: 'Projects',         score: projectScore,   max: 10, tip: 'Showcase 2-3 key projects with tech stack' },
+      { label: 'Contact Info', score: contactScore, max: 20, tip: 'Include name, email, phone & location' },
+      { label: 'Skills', score: skillsScore, max: 20, tip: 'Add at least 12 relevant technical skills' },
+      { label: 'Experience', score: expScore, max: 20, tip: 'Highlight years of experience clearly' },
+      { label: 'Education', score: educationScore, max: 10, tip: 'Add degree, institution & graduation year' },
+      { label: 'Summary', score: summaryScore, max: 10, tip: 'Write a compelling 2-3 sentence professional summary' },
+      { label: 'Certifications', score: certScore, max: 10, tip: 'Add relevant certifications to stand out' },
+      { label: 'Projects', score: projectScore, max: 10, tip: 'Showcase 2-3 key projects with tech stack' },
     ];
 
     // ── AI recommendations ────────────────────────────────────────────────
@@ -568,7 +578,7 @@ export const convertAndSaveResume = async (req, res, next) => {
               ...matchData,
               calculatedAt: new Date(),
             });
-          } catch (_) {}
+          } catch (_) { }
         }
       }
     } else {
@@ -599,7 +609,7 @@ export const convertAndSaveResume = async (req, res, next) => {
               { ...matchData, resumeName: displayResumeName, calculatedAt: new Date() },
               { upsert: true }
             );
-          } catch (_) {}
+          } catch (_) { }
         }
       }
     }
@@ -661,7 +671,7 @@ export const previewResumeHtml = async (req, res, next) => {
       const name = p.name || 'Candidate';
       const contact = [p.email, p.phone, p.location].filter(Boolean).join(' &bull; ');
       const skills = (p.skills || []).map(s => `<span class="inline-block bg-slate-100 text-slate-800 text-xs px-2.5 py-1 rounded-md mr-1.5 mb-1.5 font-medium border border-slate-200">${s}</span>`).join('');
-      
+
       const expHtml = (p.companies || []).map(c => `
         <div class="mb-4">
           <div class="font-bold text-slate-900 text-sm">${c.role || 'Role'} &mdash; <span class="text-blue-700">${c.name || c.company || ''}</span></div>
@@ -728,9 +738,13 @@ export const serveResumeFile = async (req, res, next) => {
         const { streamFile } = await import('../services/gridFsService.js');
         res.setHeader('Content-Type', mime);
         res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-        return streamFile(resume.fileId, res, 'inline');
+        // streamFile now returns a Promise — await it so errors are caught here
+        await streamFile(resume.fileId, res, 'inline');
+        return; // successfully streamed
       } catch (streamErr) {
         console.warn('GridFS stream error, falling back to disk:', streamErr.message);
+        // If headers were already sent we cannot send another response
+        if (res.headersSent) return;
       }
     }
 
@@ -811,8 +825,8 @@ export const createResumeFromTemplate = async (req, res, next) => {
     const parsedSkills = Array.isArray(skills)
       ? skills.map(s => String(s).trim()).filter(Boolean)
       : typeof skills === 'string'
-      ? skills.split(',').map(s => s.trim()).filter(Boolean)
-      : [];
+        ? skills.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
 
     const finalProfile = {
       name: (name || req.user.name || 'Candidate').trim(),
@@ -953,7 +967,7 @@ export const createResumeFromTemplate = async (req, res, next) => {
             ...matchData,
             calculatedAt: new Date(),
           });
-        } catch (_) {}
+        } catch (_) { }
       }
     }
 
@@ -964,7 +978,7 @@ export const createResumeFromTemplate = async (req, res, next) => {
       role: req.user.role,
       action: 'resume_create_template',
       metadata: { resumeId: createdResume._id, templateId, format: targetExt },
-    }).catch(() => {});
+    }).catch(() => { });
 
     res.status(201).json({
       success: true,

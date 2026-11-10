@@ -38,14 +38,6 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Bypass Express completely for Socket.IO requests so Express does not parse body or send 404
-app.use((req, res, next) => {
-  if (req.url && (req.url.startsWith('/socket.io') || req.url.startsWith('/api/socket.io'))) {
-    return;
-  }
-  next();
-});
-
 // Security & logging middleware
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(morgan('dev'));
@@ -116,49 +108,55 @@ app.use('*', (req, res) => {
 // Global error handler
 app.use(errorHandler);
 
-// Connect DB then start
-connectDB().then(async () => {
-  try {
-    await ensureAdminAccount();
-  } catch (err) {
-    console.warn('[Admin] Seed error:', err.message);
-  }
-  try {
-    const { syncUserApiKeysFromEnv } = await import('./config/seedUserApiKeys.js');
-    await syncUserApiKeysFromEnv();
-  } catch (err) {
-    console.warn('[API Keys] Seed error:', err.message);
-  }
-  try {
-    const { startScheduledJobs } = await import('./jobs/cronJobs.js');
-    startScheduledJobs();
-  } catch (err) {
-    console.warn('[Cron] Could not start scheduled jobs:', err.message);
-  }
-  const server = http.createServer(app);
-  const io = initCallSocket(server, process.env.FRONTEND_URL || 'http://localhost:5173');
+// Create HTTP server and initialize WebSockets immediately so port 5000 is always online
+const server = http.createServer(app);
+const io = initCallSocket(server, process.env.FRONTEND_URL || 'http://localhost:5173');
 
-  // Seamlessly support both /socket.io and /api/socket.io:
-  // When running behind reverse proxies (e.g. Nginx on live domain) where only /api is proxied to Node,
-  // rewriting /api/socket.io -> /socket.io allows Socket.IO to receive requests without any proxy changes!
-  server.prependListener('request', (req, res) => {
-    if (req.url && req.url.startsWith('/api/socket.io')) {
-      req.url = req.url.replace('/api/socket.io', '/socket.io');
-    }
-  });
-
-  server.prependListener('upgrade', (req, socket, head) => {
-    if (req.url && req.url.startsWith('/api/socket.io')) {
-      req.url = req.url.replace('/api/socket.io', '/socket.io');
-    }
-  });
-
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 Job Dashboard API running at http://localhost:${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-    console.log(`🛡️ Admin API: http://localhost:${PORT}/api/admin/stats`);
-    console.log(`📹 Video Calls & WebRTC Socket.IO signaling active on /socket.io`);
-    console.log(`🌐 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:5173'}\n`);
-  });
+// Seamlessly support both /socket.io and /api/socket.io:
+// When running behind reverse proxies (e.g. Nginx on live domain) where only /api is proxied to Node,
+// rewriting /api/socket.io -> /socket.io allows Socket.IO to receive requests without any proxy changes!
+server.prependListener('request', (req, res) => {
+  if (req.url && req.url.startsWith('/api/socket.io')) {
+    req.url = req.url.replace('/api/socket.io', '/socket.io');
+  }
 });
+
+server.prependListener('upgrade', (req, socket, head) => {
+  if (req.url && req.url.startsWith('/api/socket.io')) {
+    req.url = req.url.replace('/api/socket.io', '/socket.io');
+  }
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 Job Dashboard API running at http://localhost:${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🛡️ Admin API: http://localhost:${PORT}/api/admin/stats`);
+  console.log(`📹 Video Calls & WebRTC Socket.IO signaling active on /socket.io`);
+  console.log(`🌐 CORS enabled for: ${process.env.FRONTEND_URL || 'http://localhost:5173'}\n`);
+});
+
+// Connect DB in parallel without blocking server port binding
+connectDB()
+  .then(async () => {
+    try {
+      await ensureAdminAccount();
+    } catch (err) {
+      console.warn('[Admin] Seed error:', err.message);
+    }
+    try {
+      const { syncUserApiKeysFromEnv } = await import('./config/seedUserApiKeys.js');
+      await syncUserApiKeysFromEnv();
+    } catch (err) {
+      console.warn('[API Keys] Seed error:', err.message);
+    }
+    try {
+      const { startScheduledJobs } = await import('./jobs/cronJobs.js');
+      startScheduledJobs();
+    } catch (err) {
+      console.warn('[Cron] Could not start scheduled jobs:', err.message);
+    }
+  })
+  .catch((err) => {
+    console.warn('[MongoDB] Init warning:', err.message);
+  });
 

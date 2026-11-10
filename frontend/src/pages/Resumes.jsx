@@ -169,6 +169,8 @@ function PreviewModal({ resume, onClose }) {
   const [viewMode, setViewMode] = useState(isPdf ? 'pdf' : 'doc');
   const [htmlContent, setHtmlContent] = useState('');
   const [loadingHtml, setLoadingHtml] = useState(true);
+  const [iframeError, setIframeError] = useState(false);
+  const [iframeLoading, setIframeLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -185,6 +187,14 @@ function PreviewModal({ resume, onClose }) {
       });
     return () => { mounted = false; };
   }, [resume._id]);
+
+  // Reset iframe state when switching to PDF view
+  useEffect(() => {
+    if (viewMode === 'pdf') {
+      setIframeError(false);
+      setIframeLoading(true);
+    }
+  }, [viewMode]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
@@ -248,7 +258,49 @@ function PreviewModal({ resume, onClose }) {
         {/* Canvas */}
         <div className="flex-1 overflow-hidden bg-slate-100">
           {viewMode === 'pdf' && isPdf ? (
-            <iframe src={fileUrl} className="h-full w-full border-0 bg-white" title={`Preview: ${displayName}`} />
+            <div className="relative h-full w-full">
+              {/* Loading spinner overlay */}
+              {iframeLoading && !iframeError && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-100 gap-3">
+                  <RefreshCw className="h-8 w-8 text-blue-600 animate-spin" />
+                  <p className="text-sm font-semibold text-slate-600">Loading PDF preview…</p>
+                </div>
+              )}
+              {/* Error state */}
+              {iframeError ? (
+                <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100">
+                    <Info className="h-8 w-8 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">PDF could not be displayed inline</p>
+                    <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                      The file may no longer be available in storage, or your browser may be blocking inline PDFs.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-center mt-2">
+                    <a href={fileUrl} target="_blank" rel="noreferrer"
+                      className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700">
+                      <Eye className="h-3.5 w-3.5" /> Open in New Tab
+                    </a>
+                    <button
+                      onClick={() => setViewMode('doc')}
+                      className="flex items-center gap-1.5 rounded-xl bg-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-300">
+                      <FileText className="h-3.5 w-3.5" /> View Document Preview
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  key={fileUrl}
+                  src={fileUrl}
+                  className="h-full w-full border-0 bg-white"
+                  title={`Preview: ${displayName}`}
+                  onLoad={() => setIframeLoading(false)}
+                  onError={() => { setIframeLoading(false); setIframeError(true); }}
+                />
+              )}
+            </div>
           ) : (
             <div className="h-full w-full overflow-y-auto p-4 md:p-8 flex justify-center bg-slate-200/70">
               {loadingHtml ? (
@@ -268,6 +320,17 @@ function PreviewModal({ resume, onClose }) {
                   <FileText className="h-16 w-16 text-slate-400 mb-2" />
                   <p className="font-bold text-slate-700">Preview could not be rendered</p>
                   <p className="text-xs text-slate-500 mt-1">You can download the file directly in Word (.docx) or PDF format.</p>
+                  <div className="flex gap-2 mt-4">
+                    <a href={resumeService.downloadDocx(resume._id)}
+                      download={`${baseName}.docx`}
+                      className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700">
+                      <Download className="h-3.5 w-3.5" /> Download Word
+                    </a>
+                    <a href={resumeService.downloadPdf(resume._id)}
+                      className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700">
+                      <Download className="h-3.5 w-3.5" /> Download PDF
+                    </a>
+                  </div>
                 </div>
               )}
             </div>

@@ -101,6 +101,7 @@ export function initCallSocket(server, corsOrigin) {
     socket.on('call:signal', ({ to, signal, from }) => {
       if (!to || !signal) return;
       const sender = socketToUser.get(socket.id) || { socketId: socket.id };
+      console.log(`[callSocket] Relaying ${signal.type || 'signal'} from ${socket.id} (${sender.name || 'User'}) -> ${to}`);
       io.to(to).emit('call:signal', {
         from: socket.id,
         sender,
@@ -138,6 +139,13 @@ export function initCallSocket(server, corsOrigin) {
         timestamp: new Date().toISOString(),
       };
       io.to(roomId).emit('call:chat-message', chatPayload);
+    });
+
+    // 5b. Live Transcription — relay to all other room participants
+    socket.on('call:transcription', ({ roomId, line }) => {
+      if (!roomId || !line) return;
+      // Broadcast to everyone in the room except the sender
+      socket.to(roomId).emit('call:transcription', { line });
     });
 
     // 6. Direct Invite or Group Call Invite to Active Users
