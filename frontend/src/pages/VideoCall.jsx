@@ -4,24 +4,35 @@ import toast from 'react-hot-toast';
 import {
   Mic, MicOff, Video, VideoOff, ScreenShare, PhoneOff, Users,
   MessageSquare, Copy, Check, Sparkles, Radio, Crown,
-  Send, Volume2, VolumeX, Shield, Settings, Info, RefreshCw, PhoneCall,
+  Send, Volume2, VolumeX, Shield, Settings, Info, RefreshCw, Phone, PhoneCall,
   Maximize2, Minimize2, AlertCircle, UserCheck, Camera, ShieldCheck,
   FileText, ChevronDown, Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVideoCall } from '../context/VideoCallContext.jsx';
+import { useDirectMessages } from '../context/DirectMessageContext.jsx';
 import { getCallSocket } from '../services/callSocket.js';
 import { callService } from '../services/index.js';
 
 // ─── WebRTC ICE / STUN servers ──────────────────────────────────────────────
+// ─── WebRTC ICE / STUN & TURN servers ──────────────────────────────────────
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelay',
+      credential: 'openrelay',
+    },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 // ─── Animated fallback canvas stream (shown when cam is unavailable) ─────────
@@ -68,26 +79,6 @@ function createFallbackStream(name = 'User') {
   draw();
 
   const stream = canvas.captureStream ? canvas.captureStream(25) : new MediaStream();
-
-  // Add a silent audio track so WebRTC SDP negotiation includes audio
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (AudioCtx) {
-      const audioCtx = new AudioCtx();
-      const oscillator = audioCtx.createOscillator();
-      const dest = audioCtx.createMediaStreamDestination();
-      oscillator.connect(dest);
-      oscillator.start();
-      const [silenceTrack] = dest.stream.getAudioTracks();
-      if (silenceTrack) {
-        silenceTrack.enabled = false;
-        stream.addTrack(silenceTrack);
-      }
-    }
-  } catch (e) {
-    console.warn('[WebRTC] Silent audio track skipped:', e.message);
-  }
-
   stream._cleanup = () => clearInterval(intervalId);
   return stream;
 }
@@ -97,11 +88,10 @@ function VideoCard({ stream, isLocal = false, name = 'User', isMuted = false, is
   const videoRef = useRef(null);
   const audioRef = useRef(null);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
-  const [hasVideoFrame, setHasVideoFrame] = useState(false);
 
-  // 1. Video Element Binding:
-  // MUST ALWAYS be muted={true}. In Chrome and modern browsers, muted video is GUARANTEED
-  // to autoplay 100% without user gesture restrictions. Sound is handled by <audio ref={audioRef}>.
+  // 1. Video element binding:
+  // Local is ALWAYS muted={true} to avoid feedback loop / echo.
+  // Remote is unmuted (muted={false}) so incoming audio plays through the video element.
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
@@ -110,22 +100,24 @@ function VideoCard({ stream, isLocal = false, name = 'User', isMuted = false, is
       if (el.srcObject !== stream) {
         el.srcObject = stream;
       }
-      el.muted = true; // Always muted: prevents browser autoplay block
+      el.muted = isLocal;
       el.playsInline = true;
 
       const playPromise = el.play();
       if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn('[VideoCard] Video play warning:', err.message);
-        });
+        playPromise
+          .then(() => setAutoplayBlocked(false))
+          .catch((err) => {
+            console.warn('[VideoCard] Video play warning:', err.message);
+            if (!isLocal) setAutoplayBlocked(true);
+          });
       }
     } else {
       el.srcObject = null;
-      setHasVideoFrame(false);
     }
-  }, [stream]);
+  }, [stream, isLocal]);
 
-  // 2. Dedicated audio element for remote peers to play incoming sound
+  // 2. Audio playback when video is off / in audio-only mode
   useEffect(() => {
     const audioEl = audioRef.current;
     if (!audioEl || isLocal) return;
@@ -134,98 +126,99 @@ function VideoCard({ stream, isLocal = false, name = 'User', isMuted = false, is
       if (audioEl.srcObject !== stream) {
         audioEl.srcObject = stream;
       }
+      audioEl.muted = false;
       const playPromise = audioEl.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => setAutoplayBlocked(false))
           .catch((err) => {
-            console.warn('[VideoCard] Remote audio blocked by autoplay policy:', err.message);
+            console.warn('[VideoCard] Remote audio warning:', err.message);
             setAutoplayBlocked(true);
           });
       }
     } else {
       audioEl.srcObject = null;
     }
-  }, [stream, isLocal]);
+  }, [stream, isLocal, isVideoOff]);
 
-  // 3. Re-sync immediately when tracks arrive, change, or unmute
+  // 3. User interaction listener to unlock audio if blocked by browser autoplay policy
   useEffect(() => {
-    if (!stream) return;
-    const sync = () => {
-      if (videoRef.current && videoRef.current.srcObject !== stream) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
+    const unlock = () => {
+      if (videoRef.current && !isLocal) {
+        videoRef.current.play().then(() => setAutoplayBlocked(false)).catch(() => {});
       }
-      if (audioRef.current && !isLocal && audioRef.current.srcObject !== stream) {
-        audioRef.current.srcObject = stream;
-        audioRef.current.play().catch(() => {});
-      }
-      const vTracks = stream.getVideoTracks();
-      const hasLiveTrack = vTracks.length > 0 && vTracks.some((t) => t.readyState === 'live' && t.enabled);
-      if (hasLiveTrack) {
-        setHasVideoFrame(true);
+      if (audioRef.current && !isLocal) {
+        audioRef.current.play().then(() => setAutoplayBlocked(false)).catch(() => {});
       }
     };
-
-    stream.addEventListener('addtrack', sync);
-    stream.addEventListener('removetrack', sync);
-
-    // Initial check
-    sync();
-
+    window.addEventListener('click', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
     return () => {
-      stream.removeEventListener('addtrack', sync);
-      stream.removeEventListener('removetrack', sync);
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('keydown', unlock);
     };
-  }, [stream, isLocal]);
+  }, [isLocal]);
 
   const handleManualUnmute = () => {
-    if (audioRef.current) {
-      audioRef.current.play()
-        .then(() => setAutoplayBlocked(false))
-        .catch(() => {});
+    if (videoRef.current && !isLocal) {
+      videoRef.current.muted = false;
+      videoRef.current.play().then(() => setAutoplayBlocked(false)).catch(() => {});
+    }
+    if (audioRef.current && !isLocal) {
+      audioRef.current.muted = false;
+      audioRef.current.play().then(() => setAutoplayBlocked(false)).catch(() => {});
     }
   };
 
-  // Show avatar if user turned off video, or if remote video has no active video frames yet
-  const showAvatar = isVideoOff || (!isLocal && !hasVideoFrame && (!stream || stream.getVideoTracks().length === 0));
+  const hasVideoTrack = Boolean(
+    stream &&
+    stream.getVideoTracks().length > 0 &&
+    stream.getVideoTracks().some((t) => t.enabled)
+  );
+
+  // Show avatar if user turned off video, or if there is no enabled camera track
+  const showAvatar = isVideoOff || !hasVideoTrack;
 
   return (
     <div className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl flex items-center justify-center min-h-[260px] h-full w-full group">
-      {/* Video element: always muted to guarantee instant playback */}
+      {/* Video element: plays both video and remote audio */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
-        muted={true}
-        onLoadedMetadata={(e) => {
-          e.target.play().catch(() => {});
-          setHasVideoFrame(true);
-        }}
-        onCanPlay={() => setHasVideoFrame(true)}
-        onPlaying={() => setHasVideoFrame(true)}
-        className={`h-full w-full object-cover ${isLocal ? 'transform -scale-x-100' : ''} ${showAvatar ? 'hidden' : ''}`}
+        muted={isLocal}
+        className={`h-full w-full object-cover transition-opacity duration-200 ${
+          isLocal ? 'transform -scale-x-100' : ''
+        } ${showAvatar ? 'hidden' : 'block'}`}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
 
-      {/* Separate audio element for remote participants ensures audio even when video is hidden */}
-      {!isLocal && (
+      {/* Fallback audio element for remote participants when avatar is showing (audio call or camera off) */}
+      {!isLocal && showAvatar && (
         <audio
           ref={audioRef}
           autoPlay
           playsInline
-          onCanPlay={(e) => e.target.play().catch(() => {})}
         />
       )}
 
-      {/* Camera-off avatar */}
+      {/* Camera-off avatar / Audio call tile */}
       {showAvatar && (
-        <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-black text-2xl shadow-xl border-2 border-slate-700">
-            {name ? name.slice(0, 2).toUpperCase() : 'U'}
+        <div className="flex flex-col items-center justify-center gap-3 p-6 text-center animate-fadeIn">
+          <div className="relative">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 via-violet-600 to-indigo-700 text-white font-black text-2xl shadow-xl border-2 border-slate-700">
+              {name ? name.slice(0, 2).toUpperCase() : 'U'}
+            </div>
+            {!isMuted && (
+              <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md border-2 border-slate-900">
+                <Mic className="h-3.5 w-3.5 animate-pulse" />
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-200 font-bold">{name} {isLocal ? '(You)' : ''}</p>
-          <span className="text-xs text-slate-500">{isVideoOff ? 'Camera Off' : 'Connecting video…'}</span>
+          <span className="text-xs text-slate-400 font-medium">
+            {isVideoOff ? 'Camera Off' : hasVideoTrack ? 'Streaming…' : 'Voice Call'}
+          </span>
         </div>
       )}
 
@@ -233,7 +226,7 @@ function VideoCard({ stream, isLocal = false, name = 'User', isMuted = false, is
       {autoplayBlocked && !isLocal && (
         <button
           onClick={handleManualUnmute}
-          className="absolute top-3 right-3 flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-xs font-bold shadow-lg transition-all animate-bounce"
+          className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-xs font-bold shadow-lg transition-all animate-bounce"
         >
           <VolumeX className="h-3.5 w-3.5" />
           <span>Click to Unmute / Play</span>
@@ -260,20 +253,36 @@ function VideoCard({ stream, isLocal = false, name = 'User', isMuted = false, is
 export default function VideoCall() {
   const { user } = useAuth();
   const { inviteUser, inviteAllActive } = useVideoCall();
+  const { openDrawer, openAudioModal, unreadCount: unreadDirectMessages } = useDirectMessages();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // Room state
+  // Room state & mode detection ('audio' | 'video')
   const initialRoom = searchParams.get('room') || 'active-users-room';
+  const initialMode = searchParams.get('type') === 'audio' || initialRoom.startsWith('audio-') ? 'audio' : 'video';
+  const [callMode, setCallMode] = useState(initialMode);
+  const isAudioOnlyMode = callMode === 'audio';
+
   const [roomId, setRoomId] = useState(initialRoom);
   const [isInCall, setIsInCall] = useState(false);
   const [connecting, setConnecting] = useState(false);
 
-  // Media
+  // Media (defaults camera off if audio call mode)
   const [localStream, setLocalStream] = useState(null);
   const [audioEnabled, setAudioEnabled] = useState(true);
-  const [videoEnabled, setVideoEnabled] = useState(true);
+  const [videoEnabled, setVideoEnabled] = useState(!isAudioOnlyMode);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+
+  // Synchronize callMode if URL parameters change
+  useEffect(() => {
+    const t = searchParams.get('type');
+    const r = searchParams.get('room');
+    if (t === 'audio' || (r && r.startsWith('audio-'))) {
+      setCallMode('audio');
+    } else if (t === 'video') {
+      setCallMode('video');
+    }
+  }, [searchParams]);
 
   // Participants & platform users
   const [participants, setParticipants] = useState([]);
@@ -507,8 +516,8 @@ export default function VideoCall() {
     iceQueuesRef.current.set(socketId, []);
     for (const candidate of queue) {
       try {
-        if (candidate && candidate.candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        if (candidate) {
+          await pc.addIceCandidate(candidate);
         }
       } catch (e) {
         console.warn('[WebRTC] Buffered ICE candidate failed:', e.message);
@@ -523,27 +532,51 @@ export default function VideoCall() {
     let fallbackCleanup = null;
 
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      // 1. Try real camera video
-      if (withVideo) {
+      // 1. Try combined getUserMedia to prevent hardware lockup or dual permission prompts
+      if (withVideo && withAudio) {
+        try {
+          const combinedStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          });
+          videoTrack = combinedStream.getVideoTracks()[0] || null;
+          audioTrack = combinedStream.getAudioTracks()[0] || null;
+        } catch (combErr) {
+          console.warn('[WebRTC] Combined getUserMedia failed, trying individually:', combErr.message);
+          // Try video standalone
+          try {
+            const vStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            });
+            videoTrack = vStream.getVideoTracks()[0] || null;
+          } catch (vErr) {
+            console.warn('[WebRTC] Camera unavailable:', vErr.message);
+          }
+          // Try audio standalone
+          try {
+            const aStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            });
+            audioTrack = aStream.getAudioTracks()[0] || null;
+          } catch (aErr) {
+            console.warn('[WebRTC] Microphone unavailable:', aErr.message);
+          }
+        }
+      } else if (withVideo) {
         try {
           const vStream = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-            audio: false,
           });
-          videoTrack = vStream.getVideoTracks()[0];
+          videoTrack = vStream.getVideoTracks()[0] || null;
         } catch (vErr) {
-          console.warn('[WebRTC] Camera unavailable (in use by another tab or blocked), using animated avatar:', vErr.message);
+          console.warn('[WebRTC] Camera unavailable:', vErr.message);
         }
-      }
-
-      // 2. Try real microphone audio
-      if (withAudio) {
+      } else if (withAudio) {
         try {
           const aStream = await navigator.mediaDevices.getUserMedia({
-            video: false,
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
           });
-          audioTrack = aStream.getAudioTracks()[0];
+          audioTrack = aStream.getAudioTracks()[0] || null;
         } catch (aErr) {
           console.warn('[WebRTC] Microphone unavailable:', aErr.message);
         }
@@ -553,15 +586,17 @@ export default function VideoCall() {
     // Build the final combined stream
     const stream = new MediaStream();
 
-    // Guarantee a video track exists
-    if (videoTrack) {
-      stream.addTrack(videoTrack);
-    } else {
-      const fallback = createFallbackStream(user?.name || 'You');
-      const fbTrack = fallback.getVideoTracks()[0];
-      if (fbTrack) {
-        stream.addTrack(fbTrack);
-        fallbackCleanup = fallback._cleanup;
+    // Include video track only if video is requested (in audio-only calls, camera stays completely disabled)
+    if (withVideo) {
+      if (videoTrack) {
+        stream.addTrack(videoTrack);
+      } else {
+        const fallback = createFallbackStream(user?.name || 'You');
+        const fbTrack = fallback.getVideoTracks()[0];
+        if (fbTrack) {
+          stream.addTrack(fbTrack);
+          fallbackCleanup = fallback._cleanup;
+        }
       }
     }
 
@@ -617,18 +652,33 @@ export default function VideoCall() {
   // Helper to ensure all local tracks are attached to a peer connection
   const syncLocalTracksToPC = (pc) => {
     if (!localStreamRef.current) return;
-    const senders = pc.getSenders();
-    localStreamRef.current.getTracks().forEach((track) => {
-      const sender = senders.find((s) => s.track && s.track.kind === track.kind);
-      if (sender) {
-        if (sender.track && sender.track.id !== track.id) {
-          sender.replaceTrack(track).catch(() => {});
+    const localTracks = localStreamRef.current.getTracks();
+
+    localTracks.forEach((track) => {
+      const transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
+      const matchingTransceiver = transceivers.find(
+        (t) => (t.sender && t.sender.track && t.sender.track.kind === track.kind) ||
+               (t.receiver && t.receiver.track && t.receiver.track.kind === track.kind)
+      );
+
+      if (matchingTransceiver && matchingTransceiver.sender) {
+        if (matchingTransceiver.sender.track?.id !== track.id) {
+          matchingTransceiver.sender.replaceTrack(track).catch((e) => {
+            console.warn(`[WebRTC] replaceTrack (${track.kind}) error:`, e.message);
+          });
         }
       } else {
-        try {
-          pc.addTrack(track, localStreamRef.current);
-        } catch (e) {
-          console.warn('[WebRTC] addTrack warning:', e.message);
+        const sender = pc.getSenders().find((s) => s.track && s.track.kind === track.kind);
+        if (sender) {
+          if (sender.track?.id !== track.id) {
+            sender.replaceTrack(track).catch(() => {});
+          }
+        } else {
+          try {
+            pc.addTrack(track, localStreamRef.current);
+          } catch (e) {
+            console.warn('[WebRTC] addTrack warning:', e.message);
+          }
         }
       }
     });
@@ -646,6 +696,16 @@ export default function VideoCall() {
     const pc = new RTCPeerConnection(ICE_SERVERS);
     peerConnectionsRef.current.set(targetSocketId, pc);
     iceQueuesRef.current.set(targetSocketId, []);
+
+    // Ensure transceivers exist for both audio and video so SDP negotiates both streams
+    try {
+      if (pc.addTransceiver) {
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+        pc.addTransceiver('video', { direction: 'sendrecv' });
+      }
+    } catch (e) {
+      console.warn('[WebRTC] addTransceiver warning:', e.message);
+    }
 
     // Add local tracks to this peer connection
     syncLocalTracksToPC(pc);
@@ -667,52 +727,49 @@ export default function VideoCall() {
 
     pc.onconnectionstatechange = () => {
       console.log(`[WebRTC] Connection state (${targetSocketId}):`, pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        console.warn(`[WebRTC] Connection failed with ${targetSocketId}, attempting restartIce...`);
+        if (pc.restartIce) {
+          pc.restartIce();
+        }
+      }
     };
 
-    // Receive remote tracks → build remote MediaStream
+    // Receive remote tracks → bind to remote MediaStream
     pc.ontrack = (event) => {
       console.log('[WebRTC] ontrack:', event.track.kind, 'from', targetSocketId, 'streams:', event.streams?.length);
 
+      // Prefer the native MediaStream created directly by the browser WebRTC engine
       let remoteStream = remoteStreamsRef.current.get(targetSocketId);
       if (!remoteStream) {
-        remoteStream = new MediaStream();
-        remoteStreamsRef.current.set(targetSocketId, remoteStream);
+        remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream();
       }
 
-      // Add the track that arrived
-      if (event.track) {
-        const alreadyHasTrack = remoteStream.getTracks().find((t) => t.id === event.track.id);
-        if (!alreadyHasTrack) {
+      if (event.track && !remoteStream.getTracks().some((t) => t.id === event.track.id)) {
+        try {
           remoteStream.addTrack(event.track);
-        }
+        } catch (_) {}
       }
 
-      // Also incorporate any other tracks in event.streams[0] if provided
-      if (event.streams && event.streams[0]) {
-        event.streams[0].getTracks().forEach((t) => {
-          if (!remoteStream.getTracks().some((existing) => existing.id === t.id)) {
-            remoteStream.addTrack(t);
-          }
-        });
-      }
+      // Always produce a new MediaStream instance wrapper around all tracks so React state hooks trigger
+      const streamToStore = new MediaStream(remoteStream.getTracks());
+      remoteStreamsRef.current.set(targetSocketId, streamToStore);
 
-      // Force React state update with a new MediaStream wrapper so VideoCard always re-renders
-      const updateStateStream = () => {
-        const stream = remoteStreamsRef.current.get(targetSocketId);
-        if (stream && stream.getTracks().length > 0) {
-          setRemoteStreams((prev) => ({
-            ...prev,
-            [targetSocketId]: new MediaStream(stream.getTracks()),
-          }));
-        }
-      };
+      // Update state to trigger render
+      setRemoteStreams((prev) => ({
+        ...prev,
+        [targetSocketId]: streamToStore,
+      }));
 
       event.track.onunmute = () => {
         console.log('[WebRTC] Track unmuted:', event.track.kind, 'from', targetSocketId);
-        updateStateStream();
+        const refreshed = new MediaStream(remoteStreamsRef.current.get(targetSocketId)?.getTracks() || []);
+        remoteStreamsRef.current.set(targetSocketId, refreshed);
+        setRemoteStreams((prev) => ({
+          ...prev,
+          [targetSocketId]: refreshed,
+        }));
       };
-
-      updateStateStream();
 
       // Also keep participants in sync
       setParticipants((prev) => {
@@ -735,11 +792,16 @@ export default function VideoCall() {
       });
     };
 
-    // Handle ICE connection state changes
+    // Handle ICE connection state changes: restart ICE rather than immediately destroying connection
     pc.oniceconnectionstatechange = () => {
       const state = pc.iceConnectionState;
       console.log(`[WebRTC] ICE state (${targetSocketId}):`, state);
-      if (state === 'failed' || state === 'closed') {
+      if (state === 'failed') {
+        console.warn(`[WebRTC] ICE failed with ${targetSocketId}, attempting restartIce...`);
+        if (pc.restartIce) {
+          pc.restartIce();
+        }
+      } else if (state === 'closed') {
         cleanupPeer(targetSocketId);
       }
     };
@@ -782,16 +844,23 @@ export default function VideoCall() {
     }
   };
 
-  // ─── Join Video Call (activates camera & mic) ───────────────────────────────
+  // ─── Join Call (activates camera & mic or mic-only for voice calls) ─────────
   const joinCall = async (targetRoom = roomId) => {
     if (connecting || isInCall) return;
     setConnecting(true);
     setRoomId(targetRoom);
     roomIdRef.current = targetRoom;
-    setSearchParams({ room: targetRoom });
 
-    // Start hardware
-    const stream = await startHardwareMedia(videoEnabled, audioEnabled);
+    const isAudioCall = searchParams.get('type') === 'audio' || targetRoom.startsWith('audio-');
+    const shouldVideo = !isAudioCall && videoEnabled;
+
+    setSearchParams({
+      room: targetRoom,
+      ...(isAudioCall ? { type: 'audio' } : {}),
+    });
+
+    // Start hardware: voice calls activate microphone only
+    const stream = await startHardwareMedia(shouldVideo, audioEnabled);
 
     const socket = getCallSocket();
     if (!socket.connected) socket.connect();
@@ -927,8 +996,8 @@ export default function VideoCall() {
             iceQueuesRef.current.set(from, queue);
           } else {
             try {
-              if (signal.candidate && signal.candidate.candidate) {
-                await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+              if (signal.candidate) {
+                await pc.addIceCandidate(signal.candidate);
               }
             } catch (e) {
               console.warn('[WebRTC] addIceCandidate failed:', e.message);
@@ -978,7 +1047,7 @@ socket.emit('call:join-room', {
     email: user?.email || '',
     role: user?.role || 'user',
     audioEnabled,
-    videoEnabled,
+    videoEnabled: shouldVideo,
   },
 });
   };
@@ -1013,6 +1082,48 @@ const leaveCall = () => {
   toast('Call ended. Camera & microphone disabled.', { icon: '📞' });
 };
 
+// ── Auto-Connect / Auto-Join on link or invite click ────────────────────────
+const hasAutoJoinedRef = useRef(false);
+const lastAutoRoomRef = useRef(null);
+
+useEffect(() => {
+  const queryRoom = searchParams.get('room');
+  const autoJoinParam = searchParams.get('autoJoin') === 'true';
+  const isAudioType = searchParams.get('type') === 'audio';
+  const isInviteRoom = Boolean(queryRoom && (queryRoom.startsWith('audio-') || queryRoom.startsWith('call-')));
+  const shouldAutoJoin = autoJoinParam || isAudioType || isInviteRoom;
+
+  if (queryRoom && queryRoom !== lastAutoRoomRef.current) {
+    lastAutoRoomRef.current = queryRoom;
+    hasAutoJoinedRef.current = false;
+  }
+
+  if (queryRoom && queryRoom !== roomIdRef.current) {
+    setRoomId(queryRoom);
+    roomIdRef.current = queryRoom;
+  }
+
+  if (!user) return;
+
+  // If currently in a call and query room changed, leave previous call and switch to the new room
+  if (isInCall && queryRoom && queryRoom !== roomIdRef.current) {
+    console.log('[VideoCall] Switching room to:', queryRoom);
+    leaveCall();
+    setTimeout(() => {
+      joinCall(queryRoom);
+    }, 300);
+    return;
+  }
+
+  // Auto-connect if invited
+  if (shouldAutoJoin && !isInCall && !connecting && !hasAutoJoinedRef.current) {
+    hasAutoJoinedRef.current = true;
+    const target = queryRoom || roomId || 'active-users-room';
+    console.log('[VideoCall] Auto-connecting to audio/video room:', target);
+    joinCall(target);
+  }
+}, [searchParams, user, isInCall, connecting]);
+
 // ─── Toggle Microphone ──────────────────────────────────────────────────────
 const toggleAudio = () => {
   const next = !audioEnabled;
@@ -1026,14 +1137,117 @@ const toggleAudio = () => {
 };
 
 // ─── Toggle Camera ──────────────────────────────────────────────────────────
-const toggleVideo = () => {
+const toggleVideo = async () => {
   const next = !videoEnabled;
   setVideoEnabled(next);
 
-  if (localStreamRef.current) {
-    localStreamRef.current.getVideoTracks().forEach((t) => { t.enabled = next; });
-    const socket = getCallSocket();
+  if (next) {
+    if (localStreamRef.current) {
+      let vTrack = localStreamRef.current.getVideoTracks()[0];
+      if (!vTrack) {
+        try {
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const vStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            });
+            vTrack = vStream.getVideoTracks()[0];
+          }
+        } catch (_) {}
+        if (!vTrack) {
+          const fallback = createFallbackStream(user?.name || 'You');
+          vTrack = fallback.getVideoTracks()[0];
+        }
+        if (vTrack && localStreamRef.current) {
+          localStreamRef.current.addTrack(vTrack);
+          setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+          peerConnectionsRef.current.forEach((pc) => {
+            syncLocalTracksToPC(pc);
+          });
+        }
+      } else {
+        vTrack.enabled = true;
+        peerConnectionsRef.current.forEach((pc) => {
+          syncLocalTracksToPC(pc);
+        });
+      }
+    }
+  } else {
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach((t) => { t.enabled = false; });
+    }
+  }
+
+  const socket = getCallSocket();
+  if (socket && socket.connected) {
     socket.emit('call:toggle-media', { roomId: roomIdRef.current, videoEnabled: next });
+  }
+};
+
+// ─── Switch between Audio Call and Video Call mode ──────────────────────────
+const toggleCallMode = async () => {
+  const targetMode = callMode === 'audio' ? 'video' : 'audio';
+  setCallMode(targetMode);
+
+  const nextParams = new URLSearchParams(searchParams);
+  nextParams.set('type', targetMode);
+  setSearchParams(nextParams, { replace: true });
+
+  if (isInCall) {
+    if (targetMode === 'video') {
+      // Switch to Video Call Mode: turn on video
+      setVideoEnabled(true);
+      try {
+        let vTrack = localStreamRef.current?.getVideoTracks()[0];
+        if (!vTrack) {
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const vStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            });
+            vTrack = vStream.getVideoTracks()[0];
+          }
+          if (!vTrack) {
+            const fallback = createFallbackStream(user?.name || 'You');
+            vTrack = fallback.getVideoTracks()[0];
+          }
+          if (vTrack && localStreamRef.current) {
+            localStreamRef.current.addTrack(vTrack);
+            setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+            peerConnectionsRef.current.forEach((pc) => {
+              syncLocalTracksToPC(pc);
+            });
+          }
+        } else {
+          vTrack.enabled = true;
+          peerConnectionsRef.current.forEach((pc) => {
+            syncLocalTracksToPC(pc);
+          });
+        }
+      } catch (err) {
+        console.warn('Could not activate camera on mode switch:', err);
+      }
+      const socket = getCallSocket();
+      if (socket && socket.connected) {
+        socket.emit('call:toggle-media', { roomId: roomIdRef.current, videoEnabled: true });
+      }
+      toast.success('🎥 Switched to Video Call Mode');
+    } else {
+      // Switch to Audio Call Mode: turn off video
+      setVideoEnabled(false);
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach((t) => {
+          t.enabled = false;
+        });
+      }
+      const socket = getCallSocket();
+      if (socket && socket.connected) {
+        socket.emit('call:toggle-media', { roomId: roomIdRef.current, videoEnabled: false });
+      }
+      toast.success('📞 Switched to Audio Call Mode');
+    }
+  } else {
+    // In lobby: update pre-join preference
+    setVideoEnabled(targetMode === 'video');
+    toast(`Mode changed to ${targetMode === 'video' ? '🎥 Video Call' : '📞 Audio Call'}`, { icon: '🔄' });
   }
 };
 
@@ -1268,21 +1482,60 @@ return (
     {!isInCall ? (
       /* LOBBY: camera & mic remain OFF */
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Mode Switch Toggle: Audio Call vs Video Call */}
+        <div className="lg:col-span-12 flex justify-center">
+          <div className="inline-flex items-center rounded-2xl bg-slate-900 border border-slate-800 p-1 shadow-xl">
+            <button
+              type="button"
+              onClick={() => {
+                if (callMode !== 'audio') toggleCallMode();
+              }}
+              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-black transition-all ${
+                isAudioOnlyMode
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Phone className="h-4 w-4" />
+              <span>Audio Call Mode</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (callMode !== 'video') toggleCallMode();
+              }}
+              className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-black transition-all ${
+                !isAudioOnlyMode
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Video className="h-4 w-4" />
+              <span>Video Call Mode</span>
+            </button>
+          </div>
+        </div>
         {/* Privacy Preview Card */}
         <div className="lg:col-span-7 flex flex-col justify-between rounded-3xl border border-slate-800 bg-slate-950 p-6 shadow-2xl relative overflow-hidden min-h-[440px]">
           <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 to-indigo-950/40 border border-slate-800 flex flex-col items-center justify-center min-h-[300px] p-6 text-center">
-            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 mb-4 shadow-xl">
-              <ShieldCheck className="h-10 w-10 text-indigo-400" />
+            <div className={`flex h-20 w-20 items-center justify-center rounded-3xl ${
+              isAudioOnlyMode ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' : 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
+            } mb-4 shadow-xl`}>
+              {isAudioOnlyMode ? <PhoneCall className="h-10 w-10 text-emerald-400 animate-pulse" /> : <ShieldCheck className="h-10 w-10 text-indigo-400" />}
             </div>
 
-            <h3 className="text-lg font-bold text-white">Camera &amp; Microphone are Inactive</h3>
+            <h3 className="text-lg font-bold text-white">
+              {isAudioOnlyMode ? 'Voice Call — Microphone Ready' : 'Camera & Microphone are Inactive'}
+            </h3>
             <p className="text-xs text-slate-400 max-w-md mt-1 leading-relaxed">
-              Hardware privacy protected. Your camera and microphone only activate when you connect to the call, and will turn off immediately when you leave.
+              {isAudioOnlyMode
+                ? 'Your microphone will connect directly to the encrypted voice room. Your camera stays off for privacy.'
+                : 'Hardware privacy protected. Your camera and microphone only activate when you connect to the call, and will turn off immediately when you leave.'}
             </p>
 
             <div className="mt-4 flex items-center gap-2 rounded-full bg-slate-900/80 border border-slate-800 px-3.5 py-1 text-xs text-slate-300">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Ready to stream upon joining</span>
+              <span>{isAudioOnlyMode ? 'Microphone ready to connect' : 'Ready to stream upon joining'}</span>
             </div>
           </div>
 
@@ -1309,7 +1562,7 @@ return (
                   }`}
               >
                 {videoEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
-                <span>{videoEnabled ? 'Camera: On' : 'Camera: Off'}</span>
+                <span>{videoEnabled ? 'Camera: On' : isAudioOnlyMode ? 'Camera: Off (Audio Only)' : 'Camera: Off'}</span>
               </button>
             </div>
           </div>
@@ -1319,13 +1572,21 @@ return (
         <div className="lg:col-span-5 flex flex-col justify-between rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="space-y-5">
             <div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs font-bold text-indigo-700">
-                <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                Instant Video Room
+              <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
+                isAudioOnlyMode
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+              }`}>
+                {isAudioOnlyMode ? <Phone className="h-3.5 w-3.5 text-emerald-600" /> : <Sparkles className="h-3.5 w-3.5 text-indigo-600" />}
+                {isAudioOnlyMode ? 'Instant Audio Room' : 'Instant Video Room'}
               </span>
-              <h2 className="mt-2 text-2xl font-black text-slate-900">Ready to join?</h2>
+              <h2 className="mt-2 text-2xl font-black text-slate-900">
+                {isAudioOnlyMode ? 'Audio Call Ready' : 'Ready to join?'}
+              </h2>
               <p className="text-xs text-slate-500 mt-1">
-                Connect with all active users. WebRTC peer-to-peer audio &amp; video with low latency.
+                {isAudioOnlyMode
+                  ? 'Connect to peer-to-peer WebRTC voice conference with low latency.'
+                  : 'Connect with all active users. WebRTC peer-to-peer audio & video with low latency.'}
               </p>
             </div>
 
@@ -1344,10 +1605,10 @@ return (
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setRoomId('active-users-room')}
+                  onClick={() => setRoomId(isAudioOnlyMode ? `audio-${Math.random().toString(36).substr(2, 6)}` : 'active-users-room')}
                   className="text-[11px] font-bold text-indigo-600 hover:underline"
                 >
-                  #active-users-room
+                  {isAudioOnlyMode ? 'New Audio Room' : '#active-users-room'}
                 </button>
                 <span className="text-slate-300">·</span>
                 <button
@@ -1379,12 +1640,21 @@ return (
             <button
               onClick={() => joinCall(roomId)}
               disabled={connecting}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 py-4 text-sm font-black text-white shadow-xl shadow-indigo-600/30 hover:from-indigo-700 hover:to-violet-700 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+              className={`w-full flex items-center justify-center gap-2 rounded-2xl py-4 text-sm font-black text-white shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 ${
+                isAudioOnlyMode
+                  ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 shadow-emerald-600/30 hover:from-emerald-700 hover:to-teal-700'
+                  : 'bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 shadow-indigo-600/30 hover:from-indigo-700 hover:to-violet-700'
+              }`}
             >
               {connecting ? (
                 <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Activating Camera &amp; Connecting…</span>
+                  <RefreshCw className="h-4 w-4 animate-spin text-white" />
+                  <span>{isAudioOnlyMode ? 'Connecting to Voice Call…' : 'Activating Camera & Connecting…'}</span>
+                </>
+              ) : isAudioOnlyMode ? (
+                <>
+                  <Phone className="h-5 w-5" />
+                  <span>Connect to Audio Call Now</span>
                 </>
               ) : (
                 <>
@@ -1406,6 +1676,34 @@ return (
               <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
               LIVE
             </span>
+            {/* Mode Switch Button in Header */}
+            <button
+              onClick={toggleCallMode}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition-all shadow-sm hover:scale-[1.03] active:scale-[0.97] cursor-pointer ${
+                isAudioOnlyMode
+                  ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                  : 'bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30'
+              }`}
+              title={isAudioOnlyMode ? 'Click to Switch to Video Call' : 'Click to Switch to Audio Call'}
+            >
+              {isAudioOnlyMode ? (
+                <>
+                  <Phone className="h-3 w-3 text-emerald-400 animate-pulse" />
+                  <span>VOICE CALL</span>
+                  <span className="text-[10px] text-emerald-300 font-semibold bg-emerald-950/80 border border-emerald-500/30 px-1.5 py-0.2 rounded-md">
+                    Switch to Video 🎥
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Video className="h-3 w-3 text-indigo-400" />
+                  <span>VIDEO CALL</span>
+                  <span className="text-[10px] text-indigo-300 font-semibold bg-indigo-950/80 border border-indigo-500/30 px-1.5 py-0.2 rounded-md">
+                    Switch to Audio 📞
+                  </span>
+                </>
+              )}
+            </button>
             <div className="flex items-center gap-2 text-white">
               <span className="font-black text-sm">Room: {roomId}</span>
               <span className="text-slate-500">|</span>
@@ -1601,13 +1899,23 @@ return (
                         className="flex items-center justify-between rounded-xl bg-slate-800/70 p-2 text-xs text-white"
                       >
                         <span className="font-semibold">{p.name}</span>
-                        <span className="text-[10px] text-slate-400">Connected</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openDrawer({ id: p.userId, _id: p.userId, name: p.name, role: p.role })}
+                            className="flex items-center gap-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white px-2 py-0.5 text-[10px] font-bold transition-all"
+                            title="Direct Message"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                            <span>Chat</span>
+                          </button>
+                          <span className="text-[10px] text-slate-400">Connected</span>
+                        </div>
                       </div>
                     ))}
                   </div>
 
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-5 mb-2">
-                    Invite Online Teammates
+                    Online Teammates
                   </p>
                   <div className="space-y-1.5">
                     {activePlatformUsers.map((u) => {
@@ -1617,13 +1925,26 @@ return (
                           key={u.id}
                           className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 p-2 text-xs"
                         >
-                          <span className="text-slate-300 truncate max-w-[120px]">{u.name}</span>
-                          <button
-                            onClick={() => inviteUser(u.id, roomId)}
-                            className="rounded-lg bg-indigo-600/80 px-2 py-1 text-[10px] font-bold text-white hover:bg-indigo-600"
-                          >
-                            Invite
-                          </button>
+                          <div className="flex items-center gap-1.5 truncate max-w-[120px]">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+                            <span className="text-slate-300 truncate">{u.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => openDrawer(u)}
+                              className="rounded-lg bg-slate-800 hover:bg-slate-700 px-2 py-1 text-[10px] font-bold text-slate-300 hover:text-white transition-colors"
+                              title="Direct Peer-to-Peer Message"
+                            >
+                              Message
+                            </button>
+                            <button
+                              onClick={() => inviteUser(u.id, roomId)}
+                              className="rounded-lg bg-indigo-600/80 px-2 py-1 text-[10px] font-bold text-white hover:bg-indigo-600 transition-colors"
+                              title="Invite to this Video Call"
+                            >
+                              Invite
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1669,6 +1990,29 @@ return (
               title={videoEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
             >
               {videoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+            </button>
+
+            {/* Switch Mode Button: Audio Call <-> Video Call */}
+            <button
+              onClick={toggleCallMode}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-black transition-all shadow-md hover:scale-[1.03] active:scale-[0.97] ${
+                isAudioOnlyMode
+                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 shadow-indigo-600/30'
+                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-emerald-600/30'
+              }`}
+              title={isAudioOnlyMode ? 'Switch to Video Call' : 'Switch to Audio Call'}
+            >
+              {isAudioOnlyMode ? (
+                <>
+                  <Video className="h-4 w-4" />
+                  <span className="hidden sm:inline">Switch to Video</span>
+                </>
+              ) : (
+                <>
+                  <Phone className="h-4 w-4" />
+                  <span className="hidden sm:inline">Switch to Audio</span>
+                </>
+              )}
             </button>
 
             {/* Screen share */}
@@ -1740,16 +2084,39 @@ return (
               <Users className="h-5 w-5" />
             </button>
 
-            {/* Chat panel */}
+            {/* In-call Chat panel */}
             <button
               onClick={() => setSidebarTab(sidebarTab === 'chat' ? null : 'chat')}
               className={`flex h-11 w-11 items-center justify-center rounded-xl transition-all ${sidebarTab === 'chat'
                   ? 'bg-indigo-600 text-white'
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
                 }`}
-              title="In-call Chat"
+              title="Meeting Chat"
             >
               <MessageSquare className="h-5 w-5" />
+            </button>
+
+            {/* Direct 1-on-1 Messages & Teammates drawer */}
+            <button
+              onClick={() => openDrawer()}
+              className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-all"
+              title="Direct Peer-to-Peer Messages & Teammates"
+            >
+              <MessageSquare className="h-5 w-5 text-indigo-400" />
+              {unreadDirectMessages > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[9px] font-bold text-white shadow-md animate-pulse">
+                  {unreadDirectMessages > 9 ? '9+' : unreadDirectMessages}
+                </span>
+              )}
+            </button>
+
+            {/* Instant Audio / Voice Call modal */}
+            <button
+              onClick={() => openAudioModal()}
+              className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 text-emerald-400 hover:bg-slate-700 hover:text-white transition-all"
+              title="Instant Voice & Audio Call"
+            >
+              <PhoneCall className="h-5 w-5" />
             </button>
 
             <div className="h-6 w-px bg-slate-800 mx-1" />

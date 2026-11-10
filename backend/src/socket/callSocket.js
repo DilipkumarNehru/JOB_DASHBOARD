@@ -175,6 +175,40 @@ export function initCallSocket(server, corsOrigin) {
       });
     });
 
+    // 7b. Direct Peer-to-Peer Messaging Events
+    socket.on('direct-message:send', ({ recipientId, message }) => {
+      if (!recipientId || !message) return;
+      const targetSockets = onlineSocketUsers.get(String(recipientId));
+      if (targetSockets) {
+        targetSockets.forEach((sId) => {
+          io.to(sId).emit('direct-message:receive', message);
+        });
+      }
+    });
+
+    socket.on('direct-message:typing', ({ recipientId, isTyping, user }) => {
+      if (!recipientId) return;
+      const targetSockets = onlineSocketUsers.get(String(recipientId));
+      if (targetSockets) {
+        targetSockets.forEach((sId) => {
+          io.to(sId).emit('direct-message:typing', {
+            senderId: socketToUser.get(socket.id)?.id || user?.id,
+            isTyping,
+          });
+        });
+      }
+    });
+
+    socket.on('direct-message:read', ({ senderId, readByUserId }) => {
+      if (!senderId) return;
+      const senderSockets = onlineSocketUsers.get(String(senderId));
+      if (senderSockets) {
+        senderSockets.forEach((sId) => {
+          io.to(sId).emit('direct-message:read', { readByUserId });
+        });
+      }
+    });
+
     // 8. Leave Video Room
     const handleLeaveRoom = (roomId) => {
       if (!roomId || !rooms.has(roomId)) return;
@@ -251,4 +285,19 @@ export function getActiveCallRooms() {
 
 export function getSocketIO() {
   return ioInstance;
+}
+
+export function getOnlineUserIds() {
+  return Array.from(onlineSocketUsers.keys());
+}
+
+export function isUserOnline(userId) {
+  if (!userId) return false;
+  return onlineSocketUsers.has(String(userId));
+}
+
+export function getSocketIdsForUser(userId) {
+  if (!userId) return [];
+  const sSet = onlineSocketUsers.get(String(userId));
+  return sSet ? Array.from(sSet) : [];
 }

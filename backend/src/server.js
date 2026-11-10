@@ -27,6 +27,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import http from 'http';
 import practiceRoutes from './routes/practiceRoutes.js';
 import callRoutes from './routes/callRoutes.js';
+import messageRoutes from './routes/messageRoutes.js';
 import { initCallSocket } from './socket/callSocket.js';
 import { ensureAdminAccount } from './config/seedAdmin.js';
 
@@ -99,6 +100,7 @@ app.use('/api/interviews', interviewRoutes);
 app.use('/api/n8n', n8nRoutes);
 app.use('/api/practice', practiceRoutes);
 app.use('/api/calls', callRoutes);
+app.use('/api/messages', messageRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

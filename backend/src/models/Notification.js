@@ -18,7 +18,9 @@ const NotificationSchema = new mongoose.Schema({
       'APPLICATION_REJECTED',
       'COMPANY_NEW_JOB',
       'RESUME_CUSTOMIZED',
-      'GMAIL_SYNC_COMPLETE'
+      'GMAIL_SYNC_COMPLETE',
+      'DIRECT_MESSAGE',
+      'VIDEO_CALL_INVITE'
     ],
     required: true,
     index: true

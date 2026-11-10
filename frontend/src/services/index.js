@@ -167,3 +167,11 @@ export const callService = {
   getActiveUsers: () => api.get('/calls/active-users'),
   invite: (data) => api.post('/calls/invite', data),
 };
+
+export const messageService = {
+  getConversations: () => api.get('/messages/conversations'),
+  getUnreadCount: () => api.get('/messages/unread-count'),
+  getMessages: (userId) => api.get(`/messages/${userId}`),
+  sendMessage: (userId, data) => api.post(`/messages/${userId}`, data),
+  markRead: (userId) => api.put(`/messages/${userId}/read`),
+};
